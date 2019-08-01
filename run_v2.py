@@ -4,10 +4,10 @@ import os, sys
 BASE_DIR = os.path.dirname(__file__)
 sys.path.append(BASE_DIR)
 ROOT_DIR = BASE_DIR
-sys.path.append(os.path.join(ROOT_DIR, 'model'))
-sys.path.append(os.path.join(ROOT_DIR, 'dataset'))
-from model_v2 import Model
-from dataset_v2 import MyDataFlow
+sys.path.append(ROOT_DIR)
+#sys.path.append(os.path.join(ROOT_DIR, 'dataset'))
+from model.model_v2 import Model
+from dataset.dataset_v2 import MyDataFlow
 import multiprocessing
 from evaluator import Evaluator
 import six

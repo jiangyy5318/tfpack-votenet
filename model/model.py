@@ -5,7 +5,7 @@ sys.path.append(BASE_DIR)
 ROOT_DIR = BASE_DIR
 sys.path.append(os.path.join(ROOT_DIR, 'tf_ops/sampling'))
 sys.path.append(os.path.join(ROOT_DIR, 'tf_ops/grouping'))
-sys.path.append(os.path.join(ROOT_DIR, 'tf_ops/3d_nms'))
+sys.path.append(os.path.join(ROOT_DIR, 'tf_ops/nms_3d'))
 from tensorpack import *
 import numpy as np
 from tensorpack.tfutils import get_current_tower_context, gradproc, optimizer, summary

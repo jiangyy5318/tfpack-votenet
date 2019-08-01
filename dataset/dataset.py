@@ -10,7 +10,6 @@ import sys
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
 from utils import sunutils
-    #(compute_box_3d, roty, load_depth_points, load_image, SUNRGBD_Calibration, read_sunrgbd_label)
 import numpy as np
 import cv2
 from PIL import Image

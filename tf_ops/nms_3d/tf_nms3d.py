@@ -1,10 +1,13 @@
 import tensorflow as tf
-from utils.utils import roty
 import sys
 import os
-BASE_DIR = os.path.dirname(__file__)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
+#print(os.path.join(BASE_DIR, 'tf_nms3d_so.so'))
 nms3d = tf.load_op_library(os.path.join(BASE_DIR, 'tf_nms3d_so.so'))
+ROOT_DIR = os.path.dirname(os.path.dirname(BASE_DIR))
+sys.path.append(ROOT_DIR)
+from utils.sunutils import roty
 
 
 def NMS3D(bboxes, scores, objectiveness, iou_threshold):

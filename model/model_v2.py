@@ -1,17 +1,16 @@
 import os
 import sys
-BASE_DIR = os.path.dirname(__file__)
-sys.path.append(BASE_DIR)
-ROOT_DIR = BASE_DIR
-sys.path.append(os.path.join(ROOT_DIR, 'utils'))
-sys.path.append(os.path.join(ROOT_DIR, 'tf_ops/sampling'))
-sys.path.append(os.path.join(ROOT_DIR, 'tf_ops/grouping'))
-sys.path.append(os.path.join(ROOT_DIR, 'tf_ops/3d_nms'))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(BASE_DIR)
+sys.path.append(ROOT_DIR)
+# sys.path.append(os.path.join(ROOT_DIR, 'tf_ops/sampling'))
+# sys.path.append(os.path.join(ROOT_DIR, 'tf_ops/grouping'))
+# sys.path.append(os.path.join(ROOT_DIR, 'tf_ops/nms_3d'))
 from tensorpack import *
 import numpy as np
 from tensorpack.tfutils import get_current_tower_context, gradproc, optimizer, summary
-from dataset.dataset import class_mean_size
-from tf_nms3d import NMS3D
+from dataset.dataset_v2 import class_mean_size
+from tf_ops.nms_3d.tf_nms3d import NMS3D
 import config
 from utils import tf_util
 from utils.tf_box_utils import tf_points_in_hull
