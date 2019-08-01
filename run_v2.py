@@ -1,7 +1,8 @@
 from tensorpack import *
 import tensorpack.utils
-from model.model import Model
-from dataset.dataset_v2 import MyDataFlow
+# from model.model import Model
+from model.model_v2 import Model
+from dataset.dataset import MyDataFlow
 import multiprocessing
 from evaluator import Evaluator
 import six

@@ -1,26 +1,12 @@
-import random
-import time
-import multiprocessing
-from tqdm import tqdm
-from six.moves import queue
-
-from tensorpack.utils.concurrency import StoppableThread, ShareSessionThread
 from tensorpack.callbacks import Callback
 from tensorpack.utils import logger
-from dataset import *
+from dataset.dataset import *
 import numpy as np
 import config
 from shapely.geometry import Polygon
-import itertools
-from sklearn.metrics import average_precision_score
-from tensorpack.utils.stats import StatCounter
-from tensorpack.utils.utils import get_tqdm_kwargs
 from tqdm import tqdm
 type_whitelist = ('bed', 'table', 'sofa', 'chair', 'toilet', 'desk', 'dresser', 'night_stand',
                                'bookshelf', 'bathtub')
-
-import sys
-import os
 
 
 def iou_3d(bbox1, bbox2):
@@ -235,7 +221,7 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':
     import itertools
-    from model import Model
+    from model.model import Model
     mAPs = eval_mAP(sunrgbd_object('/home/neil/mysunrgbd', 'training', idx_list=list(range(11, 21))), OfflinePredictor(PredictConfig(
             model=Model(),
             session_init=SaverRestore('./train_log/run/checkpoint'),

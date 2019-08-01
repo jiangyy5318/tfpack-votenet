@@ -1,5 +1,4 @@
 """ PointNet++ Layers
-
 Author: Charles R. Qi
 Date: November 2017
 """
@@ -8,21 +7,21 @@ import os
 import sys
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR = BASE_DIR
+ROOT_DIR = os.path.dirname(BASE_DIR)
 sys.path.append(os.path.join(ROOT_DIR, 'utils'))
 sys.path.append(os.path.join(ROOT_DIR, 'tf_ops/sampling'))
 sys.path.append(os.path.join(ROOT_DIR, 'tf_ops/grouping'))
 sys.path.append(os.path.join(ROOT_DIR, 'tf_ops/3d_interpolation'))
-# print(os.path.join(ROOT_DIR, 'tf_ops/3d_interpolation'))
+
 from tf_sampling import farthest_point_sample, gather_point
 from tf_grouping import query_ball_point, group_point, knn_point
 from tf_interpolate import three_nn, three_interpolate
-from tensorpack import *
 import tensorflow as tf
 import numpy as np
+import tf_util
 
 
-def sample_and_group(npoint, radius, nsample, xyz, points, knn=False, use_xyz=True, sample_xyz=None):
+def sample_and_group(npoint, radius, nsample, xyz, points, knn=False, use_xyz=True):
     '''
     Input:
         npoint: int32
@@ -39,13 +38,23 @@ def sample_and_group(npoint, radius, nsample, xyz, points, knn=False, use_xyz=Tr
         grouped_xyz: (batch_size, npoint, nsample, 3) TF tensor, normalized point XYZs
             (subtracted by seed point XYZ) in local regions
     '''
-    if sample_xyz is not None:
-        new_xyz = gather_point(xyz, farthest_point_sample(npoint, sample_xyz))
-    else:
-        new_xyz = gather_point(xyz, farthest_point_sample(npoint, xyz))  # (batch_size, npoint, 3)
+
+    '''
+    input data: xyz.shape[0] (N)*(d+C);
+    a set of centroids: npoint (N')*d
+    neighbors: nsample (K)*(d+C)
+    farthest_point_sample output npoint's index.
+    gather_point: output npoint 's data according to index and input data
+    '''
+    # aaa = farthest_point_sample(npoint, xyz)
+    new_xyz = gather_point(xyz, farthest_point_sample(npoint, xyz))  # (batch_size, npoint, 3)
+    # print('xys:', new_xyz.get_shape())
+    # print('new_xyz in s g:', new_xyz.get_shape(), 'npoint:', npoint)
+
     if knn:
         _, idx = knn_point(nsample, xyz, new_xyz)
     else:
+        # K‘ flexiable, but less than nsample, paper not refered
         idx, pts_cnt = query_ball_point(radius, nsample, xyz, new_xyz)
     grouped_xyz = group_point(xyz, idx)  # (batch_size, npoint, nsample, 3)
     grouped_xyz -= tf.tile(tf.expand_dims(new_xyz, 2), [1, 1, nsample, 1])  # translation normalization
@@ -90,8 +99,8 @@ def sample_and_group_all(xyz, points, use_xyz=True):
     return new_xyz, new_points, idx, grouped_xyz
 
 
-def pointnet_sa_module(xyz, points, npoint, radius, nsample, mlp, mlp2, group_all, scope,
-                       bn=True, pooling='max', knn=False, use_xyz=True, use_nchw=False, sample_xyz=None):
+def pointnet_sa_module(xyz, points, npoint, radius, nsample, mlp, mlp2, group_all, is_training, bn_decay, scope,
+                       bn=True, pooling='max', knn=False, use_xyz=True, use_nchw=False):
     ''' PointNet Set Abstraction (SA) Module
         Input:
             xyz: (batch_size, ndataset, 3) TF tensor
@@ -117,46 +126,58 @@ def pointnet_sa_module(xyz, points, npoint, radius, nsample, mlp, mlp2, group_al
             nsample = xyz.get_shape()[1].value
             new_xyz, new_points, idx, grouped_xyz = sample_and_group_all(xyz, points, use_xyz)
         else:
-            new_xyz, new_points, idx, grouped_xyz = sample_and_group(npoint, radius, nsample, xyz, points, knn, use_xyz, sample_xyz)
+            new_xyz, new_points, idx, grouped_xyz = sample_and_group(npoint, radius, nsample, xyz, points, knn, use_xyz)
+
+        # print('new_xyz:', new_xyz.get_shape(), 'new_points:', new_points.get_shape(), 'group_xyz:', grouped_xyz.get_shape())
 
         # Point Feature Embedding
         if use_nchw: new_points = tf.transpose(new_points, [0, 3, 1, 2])
         for i, num_out_channel in enumerate(mlp):
-            new_points = Conv2D("conv%d" % i, new_points, num_out_channel, [1, 1], padding='VALID',
-                                activation=BNReLU if bn else tf.nn.relu, data_format=data_format)
+            new_points = tf_util.conv2d(new_points, num_out_channel, [1, 1],
+                                        padding='VALID', stride=[1, 1],
+                                        bn=bn, is_training=is_training,
+                                        scope='conv%d' % (i), bn_decay=bn_decay,
+                                        data_format=data_format)
         if use_nchw: new_points = tf.transpose(new_points, [0, 2, 3, 1])
+
+        # print('mlp new_points:', new_points.get_shape())
 
         # Pooling in Local Regions
         if pooling == 'max':
-            new_points = tf.reduce_max(new_points, axis=[2], keep_dims=True, name='maxpool')
+            new_points = tf.reduce_max(new_points, axis=[2], keepdims=True, name='maxpool')
         elif pooling == 'avg':
-            new_points = tf.reduce_mean(new_points, axis=[2], keep_dims=True, name='avgpool')
+            new_points = tf.reduce_mean(new_points, axis=[2], keepdims=True, name='avgpool')
         elif pooling == 'weighted_avg':
             with tf.variable_scope('weighted_avg'):
-                dists = tf.norm(grouped_xyz, axis=-1, ord=2, keep_dims=True)
+                dists = tf.norm(grouped_xyz, axis=-1, ord=2, keepdims=True)
                 exp_dists = tf.exp(-dists * 5)
                 weights = exp_dists / tf.reduce_sum(exp_dists, axis=2,
-                                                    keep_dims=True)  # (batch_size, npoint, nsample, 1)
+                                                    keepdims=True)  # (batch_size, npoint, nsample, 1)
                 new_points *= weights  # (batch_size, npoint, nsample, mlp[-1])
-                new_points = tf.reduce_sum(new_points, axis=2, keep_dims=True)
+                new_points = tf.reduce_sum(new_points, axis=2, keepdims=True)
         elif pooling == 'max_and_avg':
-            max_points = tf.reduce_max(new_points, axis=[2], keep_dims=True, name='maxpool')
-            avg_points = tf.reduce_mean(new_points, axis=[2], keep_dims=True, name='avgpool')
+            max_points = tf.reduce_max(new_points, axis=[2], keepdims=True, name='maxpool')
+            avg_points = tf.reduce_mean(new_points, axis=[2], keepdims=True, name='avgpool')
             new_points = tf.concat([avg_points, max_points], axis=-1)
+
+        # print('after group new_points:', new_points.get_shape())
 
         # [Optional] Further Processing
         if mlp2 is not None:
             if use_nchw: new_points = tf.transpose(new_points, [0, 3, 1, 2])
             for i, num_out_channel in enumerate(mlp2):
-                new_points = Conv2D("conv_post_%d" % i, new_points, num_out_channel, [1, 1], padding='VALID',
-                                    activation=None if i == len(mlp2) - 1 else (BNReLU if bn else tf.nn.relu), data_format=data_format)
+                new_points = tf_util.conv2d(new_points, num_out_channel, [1, 1],
+                                            padding='VALID', stride=[1, 1],
+                                            bn=bn, is_training=is_training,
+                                            scope='conv_post_%d' % (i), bn_decay=bn_decay,
+                                            data_format=data_format)
             if use_nchw: new_points = tf.transpose(new_points, [0, 2, 3, 1])
 
         new_points = tf.squeeze(new_points, [2])  # (batch_size, npoints, mlp2[-1])
         return new_xyz, new_points, idx
 
 
-def pointnet_sa_module_msg(xyz, points, npoint, radius_list, nsample_list, mlp_list, scope,
+def pointnet_sa_module_msg(xyz, points, npoint, radius_list, nsample_list, mlp_list, is_training, bn_decay, scope,
                            bn=True, use_xyz=True, use_nchw=False):
     ''' PointNet Set Abstraction (SA) module with Multi-Scale Grouping (MSG)
         Input:
@@ -190,8 +211,9 @@ def pointnet_sa_module_msg(xyz, points, npoint, radius_list, nsample_list, mlp_l
                 grouped_points = grouped_xyz
             if use_nchw: grouped_points = tf.transpose(grouped_points, [0, 3, 1, 2])
             for j, num_out_channel in enumerate(mlp_list[i]):
-                grouped_points = Conv2D("conv%d_%d" % (i, j), grouped_points, num_out_channel, [1, 1], padding='VALID',
-                                    activation=BNReLU if bn else tf.nn.relu, data_format=data_format)
+                grouped_points = tf_util.conv2d(grouped_points, num_out_channel, [1, 1],
+                                                padding='VALID', stride=[1, 1], bn=bn, is_training=is_training,
+                                                scope='conv%d_%d' % (i, j), bn_decay=bn_decay)
             if use_nchw: grouped_points = tf.transpose(grouped_points, [0, 2, 3, 1])
             new_points = tf.reduce_max(grouped_points, axis=[2])
             new_points_list.append(new_points)
@@ -199,7 +221,7 @@ def pointnet_sa_module_msg(xyz, points, npoint, radius_list, nsample_list, mlp_l
         return new_xyz, new_points_concat
 
 
-def pointnet_fp_module(xyz1, xyz2, points1, points2, mlp, scope, bn=True):
+def pointnet_fp_module(xyz1, xyz2, points1, points2, mlp, is_training, bn_decay, scope, bn=True):
     ''' PointNet Feature Propogation (FP) Module
         Input:
             xyz1: (batch_size, ndataset1, 3) TF tensor
@@ -213,7 +235,7 @@ def pointnet_fp_module(xyz1, xyz2, points1, points2, mlp, scope, bn=True):
     with tf.variable_scope(scope) as sc:
         dist, idx = three_nn(xyz1, xyz2)
         dist = tf.maximum(dist, 1e-10)
-        norm = tf.reduce_sum((1.0 / dist), axis=2, keep_dims=True)
+        norm = tf.reduce_sum((1.0 / dist), axis=2, keepdims=True)
         norm = tf.tile(norm, [1, 1, 3])
         weight = (1.0 / dist) / norm
         interpolated_points = three_interpolate(points2, idx, weight)
@@ -224,7 +246,9 @@ def pointnet_fp_module(xyz1, xyz2, points1, points2, mlp, scope, bn=True):
             new_points1 = interpolated_points
         new_points1 = tf.expand_dims(new_points1, 2)
         for i, num_out_channel in enumerate(mlp):
-            new_points1 = Conv2D("conv_%d" % i, new_points1, num_out_channel, [1, 1], padding='VALID',
-                                 activation=BNReLU if bn else tf.nn.relu)
+            new_points1 = tf_util.conv2d(new_points1, num_out_channel, [1, 1],
+                                         padding='VALID', stride=[1, 1],
+                                         bn=bn, is_training=is_training,
+                                         scope='conv_%d' % (i), bn_decay=bn_decay)
         new_points1 = tf.squeeze(new_points1, [2])  # B,ndataset1,mlp[-1]
         return new_points1

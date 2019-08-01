@@ -5,23 +5,16 @@ Date: October 2017
 
 TODO: code formatting and clean-up.
 '''
-
 import os
 import sys
-import numpy as np
-from mayavi import mlab
-import config
-from tensorpack import *
-import sys
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
-import utils
-from sunutils import *
-
-from viz_utils import draw_gt_boxes3d, draw_lidar
+from utils import sunutils
+    #(compute_box_3d, roty, load_depth_points, load_image, SUNRGBD_Calibration, read_sunrgbd_label)
+import numpy as np
 import cv2
 from PIL import Image
+from tensorpack import RNGDataFlow
 
 data_dir = BASE_DIR
 
@@ -103,7 +96,7 @@ def get_3d_box(box_size, heading_angle, center):
         output (8,3) array for 3D box cornders
         Similar to utils/compute_orientation_3d
     '''
-    R = roty(heading_angle)
+    R = sunutils.roty(heading_angle)
     l, w, h = box_size
     x_corners = [l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2];
     y_corners = [h / 2, h / 2, h / 2, h / 2, -h / 2, -h / 2, -h / 2, -h / 2];
@@ -144,20 +137,20 @@ class sunrgbd_object(object):
 
     def get_image(self, idx):
         img_filename = os.path.join(self.image_dir, '%06d.jpg' % (idx))
-        return load_image(img_filename)
+        return sunutils.load_image(img_filename)
 
     def get_depth(self, idx):
         depth_filename = os.path.join(self.depth_dir, '%06d.txt' % (idx))
-        return load_depth_points(depth_filename)
+        return sunutils.load_depth_points(depth_filename)
 
     def get_calibration(self, idx):
         calib_filename = os.path.join(self.calib_dir, '%06d.txt' % (idx))
-        return SUNRGBD_Calibration(calib_filename)
+        return sunutils.SUNRGBD_Calibration(calib_filename)
 
     def get_label_objects(self, idx):
         assert (self.split == 'training')
         label_filename = os.path.join(self.label_dir, '%06d.txt' % (idx))
-        return read_sunrgbd_label(label_filename)
+        return sunutils.read_sunrgbd_label(label_filename)
 
 
 def dataset_viz(show_frustum=False):
@@ -209,8 +202,8 @@ def dataset_viz(show_frustum=False):
         box3d = []
         ori3d = []
         for obj in objects:
-            corners_3d_image, corners_3d = utils.compute_box_3d(obj, calib)
-            ori_3d_image, ori_3d = utils.compute_orientation_3d(obj, calib)
+            corners_3d_image, corners_3d = sunutils.compute_box_3d(obj, calib)
+            ori_3d_image, ori_3d = sunutils.compute_orientation_3d(obj, calib)
             print('Corners 3D: ', corners_3d)
             box3d.append(corners_3d)
             ori3d.append(ori_3d)
@@ -250,148 +243,6 @@ def dataset_viz(show_frustum=False):
                               mode='point', colormap='gnuplot', figure=fig)
                 input()
 
-
-def extract_roi_seg(idx_filename, split, output_filename, viz, perturb_box2d=False, augmentX=1,
-                    type_whitelist=('bed', 'table', 'sofa', 'chair', 'toilet', 'desk', 'dresser', 'night_stand',
-                                    'bookshelf', 'bathtub')):
-    dataset = sunrgbd_object('/media/neil/DATA/mysunrgbd', split)
-    # data_idx_list = [int(line.rstrip()) for line in open(idx_filename)]
-    data_idx_list = list(range(1, 10335))
-
-    final_list = []
-
-    pos_cnt = 0
-    all_cnt = 0
-    for data_idx in data_idx_list:
-        try:
-            print('------------- ', data_idx)
-            calib = dataset.get_calibration(data_idx)
-            objects = dataset.get_label_objects(data_idx)
-            pc_upright_depth = dataset.get_depth(data_idx)
-            pc_upright_camera = np.zeros_like(pc_upright_depth)
-            pc_upright_camera[:, 0:3] = calib.project_upright_depth_to_upright_camera(pc_upright_depth[:, 0:3])
-            pc_upright_camera[:, 3:] = pc_upright_depth[:, 3:]
-            if viz:
-                mlab.points3d(pc_upright_camera[:, 0], pc_upright_camera[:, 1], pc_upright_camera[:, 2],
-                              pc_upright_camera[:, 1], mode='point')
-                mlab.orientation_axes()
-                mlab.show()
-            img = dataset.get_image(data_idx)
-            img_height, img_width, img_channel = img.shape
-            pc_image_coord, _ = calib.project_upright_depth_to_image(pc_upright_depth)
-        except:
-            continue
-        # print('PC image coord: ', pc_image_coord)
-
-        # box2d_list = []  # [xmin,ymin,xmax,ymax]
-        # box3d_list = []  # (8,3) array in upright depth coord
-        input_list = []  # channel number = 6, xyz,rgb in upright depth coord
-        label_list = []  # 1 for roi object, 0 for clutter
-        # type_list = []  # string e.g. bed
-        # heading_list = []  # face of object angle, radius of clockwise angle from positive x axis in upright camera coord
-        # box3d_size_list = []  # array of l,w,h
-        # frustum_angle_list = []  # angle of 2d box center from pos x-axis (clockwise)
-        obj_list = []
-
-        for obj_idx in range(len(objects)):
-            obj = objects[obj_idx]
-            if obj.classname not in type_whitelist: continue
-
-            # 2D BOX: Get pts rect backprojected
-            box2d = obj.box2d
-            for _ in range(augmentX):
-                try:
-                    # Augment data by box2d perturbation
-                    if perturb_box2d:
-                        xmin, ymin, xmax, ymax = random_shift_box2d(box2d)
-                        print(xmin, ymin, xmax, ymax)
-                    else:
-                        xmin, ymin, xmax, ymax = box2d
-                    box_fov_inds = (pc_image_coord[:, 0] < xmax) & (pc_image_coord[:, 0] >= xmin) & (
-                                pc_image_coord[:, 1] < ymax) & (pc_image_coord[:, 1] >= ymin)
-                    pc_in_box_fov = pc_upright_camera[box_fov_inds, :]
-                    # Get frustum angle (according to center pixel in 2D BOX)
-                    box2d_center = np.array([(xmin + xmax) / 2.0, (ymin + ymax) / 2.0])
-                    uvdepth = np.zeros((1, 3))
-                    uvdepth[0, 0:2] = box2d_center
-                    uvdepth[0, 2] = 20  # some random depth
-                    box2d_center_upright_camera = calib.project_image_to_upright_camerea(uvdepth)
-                    print('UVdepth, center in upright camera: ', uvdepth, box2d_center_upright_camera)
-                    frustum_angle = -1 * np.arctan2(box2d_center_upright_camera[0, 2], box2d_center_upright_camera[
-                        0, 0])  # angle as to positive x-axis as in the Zoox paper
-                    print('Frustum angle: ', frustum_angle)
-                    # 3D BOX: Get pts velo in 3d box
-                    box3d_pts_2d, box3d_pts_3d = compute_box_3d(obj, calib)
-                    box3d_pts_3d = calib.project_upright_depth_to_upright_camera(box3d_pts_3d)
-                    _, inds = extract_pc_in_box3d(pc_in_box_fov, box3d_pts_3d)
-                    print(len(inds))
-                    label = np.zeros((pc_in_box_fov.shape[0]))
-                    label[inds] = 1
-                    # Get 3D BOX heading
-                    print('Orientation: ', obj.orientation)
-                    print('Heading angle: ', obj.heading_angle)
-                    # Get 3D BOX size
-                    box3d_size = np.array([2 * obj.l, 2 * obj.w, 2 * obj.h])
-                    print('Box3d size: ', box3d_size)
-                    print('Type: ', obj.classname)
-                    print('Num of point: ', pc_in_box_fov.shape[0])
-
-                    # Subsample points..
-                    num_point = pc_in_box_fov.shape[0]
-                    if num_point > 2048:
-                        choice = np.random.choice(pc_in_box_fov.shape[0], 2048, replace=False)
-                        pc_in_box_fov = pc_in_box_fov[choice, :]
-                        label = label[choice]
-                    # Reject object with too few points
-                    if np.sum(label) < 5:
-                        continue
-
-                    # id_list.append(data_idx)
-                    # box2d_list.append(np.array([xmin, ymin, xmax, ymax]))
-                    # box3d_list.append(box3d_pts_3d)
-                    input_list.append(pc_in_box_fov)
-                    label_list.append(label)
-                    # type_list.append(obj.classname)
-                    # heading_list.append(obj.heading_angle)
-                    # box3d_size_list.append(box3d_size)
-                    # frustum_angle_list.append(frustum_angle)
-                    obj_list.append([box3d_pts_3d, obj.classname, obj.heading_angle, box3d_size])
-
-
-                    # collect statistics
-                    pos_cnt += np.sum(label)
-                    all_cnt += pc_in_box_fov.shape[0]
-
-                    # VISUALIZATION
-                    if viz:
-                        img2 = np.copy(img)
-                        cv2.rectangle(img2, (int(obj.xmin), int(obj.ymin)), (int(obj.xmax), int(obj.ymax)), (0, 255, 0),
-                                      2)
-                        draw_projected_box3d(img2, box3d_pts_2d)
-                        Image.fromarray(img2).show()
-                        p1 = input_list[-1]
-                        seg = label_list[-1]
-                        fig = mlab.figure(figure=None, bgcolor=(0.4, 0.4, 0.4), fgcolor=None, engine=None,
-                                          size=(1024, 1024))
-                        mlab.points3d(p1[:, 0], p1[:, 1], p1[:, 2], seg, mode='point', colormap='gnuplot',
-                                      scale_factor=1, figure=fig)
-                        mlab.points3d(0, 0, 0, color=(1, 1, 1), mode='sphere', scale_factor=0.2)
-                        draw_gt_boxes3d([box3d_pts_3d], fig=fig)
-                        mlab.orientation_axes()
-                        mlab.show()
-                except Exception as e:
-                    print(e)
-        if obj_list:
-            print(pc_upright_camera.shape, len(obj_list))
-            final_list.append([data_idx, pc_upright_camera, obj_list])
-
-    save_zipped_pickle(final_list, output_filename)
-    # print('Average pos ratio: ', pos_cnt / float(all_cnt))
-    # print('Average npoints: ', float(all_cnt) / len(id_list))
-
-    # utils.save_zipped_pickle(
-    #     [id_list, box2d_list, box3d_list, input_list, label_list, type_list, heading_list, box3d_size_list,
-    #      frustum_angle_list], output_filename)
 
 
 class MyDataFlow(RNGDataFlow):
@@ -456,9 +307,9 @@ class MyDataFlow(RNGDataFlow):
                     pc_in_box_fov = pc_upright_camera[box_fov_inds, :]
                     # Get frustum angle (according to center pixel in 2D BOX)
                     # 3D BOX: Get pts velo in 3d box
-                    box3d_pts_2d, box3d_pts_3d = compute_box_3d(obj, calib)
+                    box3d_pts_2d, box3d_pts_3d = sunutils.compute_box_3d(obj, calib)
                     box3d_pts_3d = calib.project_upright_depth_to_upright_camera(box3d_pts_3d)
-                    _, inds = extract_pc_in_box3d(pc_in_box_fov, box3d_pts_3d)
+                    _, inds = sunutils.extract_pc_in_box3d(pc_in_box_fov, box3d_pts_3d)
                     # Get 3D BOX size
                     box3d_size = np.array([2 * obj.l, 2 * obj.w, 2 * obj.h])
                     box3d_center = (box3d_pts_3d[0, :] + box3d_pts_3d[6, :]) / 2
@@ -471,7 +322,7 @@ class MyDataFlow(RNGDataFlow):
                             box3d_center[..., 2] = -box3d_center[..., 2]
                             obj.heading_angle = -obj.heading_angle
 
-                        box3d_center = (roty(rand_roty_angle) @ box3d_center.T).T
+                        box3d_center = (sunutils.roty(rand_roty_angle) @ box3d_center.T).T
                         obj.heading_angle += rand_roty_angle
 
                         box3d_center = box3d_center * rand_scale
@@ -553,7 +404,7 @@ if __name__ == '__main__':
         import config
 
         sys.path.append(os.path.join(BASE_DIR, '../../mayavi'))
-        from viz_utils import draw_lidar, draw_gt_boxes3d
+        from utils.viz_utils import draw_gt_boxes3d
 
         median_list = []
         dataset = MyDataFlow('/media/neil/DATA/mysunrgbd', 'training')

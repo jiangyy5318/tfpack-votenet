@@ -6,12 +6,11 @@ ROOT_DIR = BASE_DIR
 sys.path.append(os.path.join(ROOT_DIR, 'tf_ops/sampling'))
 sys.path.append(os.path.join(ROOT_DIR, 'tf_ops/grouping'))
 sys.path.append(os.path.join(ROOT_DIR, 'tf_ops/3d_nms'))
-import tensorflow as tf
 from tensorpack import *
 import numpy as np
-from tensorpack.tfutils import get_current_tower_context, gradproc, optimizer, summary, varreplace
-from utils import pointnet_sa_module, pointnet_fp_module
-from dataset import class_mean_size
+from tensorpack.tfutils import get_current_tower_context, gradproc, optimizer, summary
+from utils.utils import pointnet_sa_module, pointnet_fp_module
+from dataset.dataset import class_mean_size
 from tf_nms3d import NMS3D
 import config
 

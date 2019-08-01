@@ -1,6 +1,5 @@
 import tensorflow as tf
-from tensorflow.python.framework import ops
-from sunutils import roty
+from utils.utils import roty
 import sys
 import os
 BASE_DIR = os.path.dirname(__file__)
