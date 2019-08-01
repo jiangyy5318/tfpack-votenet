@@ -15,6 +15,7 @@ import config
 from utils import tf_util
 from utils.tf_box_utils import tf_points_in_hull
 from utils.pointnet_util import (pointnet_sa_module, pointnet_fp_module)
+import tensorflow as tf
 
 
 def huber_loss(error, delta):
@@ -89,21 +90,20 @@ class Model(ModelDesc):
         size_scores_pred = tf.slice(proposals_output, [0, 0, 5 + config.NH * 2], [-1, -1, config.NS])
         size_residuals_normalized_pred = tf.slice(proposals_output, [0, 0, 5 + config.NH * 2 + config.NS],
                                              [-1, -1, config.NS * 3])
-        b, k, _ = size_residuals_normalized_pred.get_shape()
-        size_residuals_normalized_pred = tf.reshape(size_residuals_normalized_pred, [b, k, config.NS, 3])
+        size_residuals_normalized_pred = tf.reshape(size_residuals_normalized_pred, [-1, config.PROPOSAL_NUM, config.NS, 3])
         sementic_classes_pred = tf.slice(proposals_output, [0, 0, 5 + config.NH * 2 + config.NS * 4], [-1, -1, -1])
         return object_pred, center_pred, heading_scores_pred, heading_residuals_normalized_pred, \
             size_scores_pred, size_residuals_normalized_pred, sementic_classes_pred
 
     @staticmethod
     def calc_vote_loss(seeds_xyz, votes_xyz, box_center_label, box3d_pts_label):
-        in_surface = tf_points_in_hull(seeds_xyz, box3d_pts_label)
+        in_surface = tf.cast(tf_points_in_hull(seeds_xyz, box3d_pts_label), dtype=tf.float32)
         # every seed belong to one boxes.
         # in_surface = tf.cast(tf.logical_and(in_surface, tf.expand_dims(objects_num_label, axis=1)), dtype=tf.float32)
         # center_label = tf.reduce_mean(box3d_pts_label, axis=2)
         delta_x_ig = tf.norm(tf.expand_dims(votes_xyz, axis=2) -
                              tf.expand_dims(box_center_label, axis=1), axis=-1) ** 2
-        loss_vote = tf.reduce_mean(tf.reduce_sum(delta_x_ig * tf.cast(in_surface, dtype=tf.float32), axis=[1]) /
+        loss_vote = tf.reduce_mean(tf.reduce_sum(delta_x_ig * in_surface, axis=[1]) /
                                    tf.reduce_sum(in_surface, axis=[1]))
         return loss_vote
 
@@ -120,56 +120,6 @@ class Model(ModelDesc):
         positive_gt_idx = tf.concat([tf.expand_dims(positive_pro_idx[:, 0], axis=-1),
                                      tf.expand_dims(tf.gather_nd(arg_min, positive_pro_idx), axis=-1)], axis=1)
         return votes_positive, votes_negative, positive_pro_idx, positive_gt_idx
-
-    # @staticmethod
-    # def inference_only(proposals_xyz, size_scores_pred, size_residuals_normalized_pred, ):
-        def get_3d_bbox(box_size, heading_angle, center):
-            batch_size = tf.shape(heading_angle)[0]
-            c = tf.cos(heading_angle)
-            s = tf.sin(heading_angle)
-            zeros = tf.zeros_like(c)
-            ones = tf.ones_like(c)
-            rotation = tf.reshape(tf.stack([c, zeros, s, zeros, ones, zeros, -s, zeros, c], -1),
-                                  tf.stack([batch_size, -1, 3, 3]))
-            l, w, h = box_size[..., 0], box_size[..., 1], box_size[..., 2]  # lwh(xzy) order!!!
-            corners = tf.reshape(tf.stack([l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2,
-                                           h / 2, h / 2, h / 2, h / 2, -h / 2, -h / 2, -h / 2, -h / 2,
-                                           w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2], -1),
-                                 tf.stack([batch_size, -1, 3, 8]))
-            return tf.einsum('ijkl,ijlm->ijmk', rotation, corners) + tf.expand_dims(center, 2)  # B * N * 8 * 3
-
-        object_pred, center_pred, heading_scores_pred, heading_residuals_normalized_pred, size_scores_pred, \
-        size_residuals_normalized_pred, sementic_classes_pred = self.parse_outputs_to_tensor(proposals_output)
-
-        class_mean_size_tf = tf.constant(class_mean_size)
-        size_cls_pred = tf.argmax(size_scores_pred, axis=-1)
-        size_cls_pred_onehot = tf.one_hot(size_cls_pred, depth=config.NS, axis=-1)  # B * N * NS
-        size_residual_pred = tf.reduce_sum(tf.expand_dims(size_cls_pred_onehot, -1)
-                                           * tf.reshape(size_residuals_normalized_pred,
-                                                        [-1, config.PROPOSAL_NUM, config.NS, 3]), axis=2)
-        size_pred = tf.gather_nd(class_mean_size_tf, tf.expand_dims(size_cls_pred, -1)) * tf.maximum(
-            1 + size_residual_pred, 1e-6)  # B * N * 3: size
-        # with tf.control_dependencies([tf.print(size_pred[0, 0, 2])]):
-        center_pred = proposals_xyz + proposals_output[..., 2:5]  # B * N * 3
-        heading_cls_pred = tf.argmax(proposals_output[..., 5:5 + config.NH], axis=-1)
-        heading_cls_pred_onehot = tf.one_hot(heading_cls_pred, depth=config.NH, axis=-1)
-        heading_residual_pred = tf.reduce_sum(heading_cls_pred_onehot
-                                              * proposals_output[..., 5 + config.NH:5 + 2 * config.NH], axis=2)
-        heading_pred = tf.floormod(
-            (tf.cast(heading_cls_pred, tf.float32) * 2 + heading_residual_pred) * np.pi / config.NH, 2 * np.pi)
-
-        # with tf.control_dependencies([tf.print(size_residual_pred[0, :10, :]), tf.print(size_pred[0, :10, :])]):
-        bboxes = get_3d_bbox(size_pred, heading_pred, center_pred)  # B * N * 8 * 3,  lhw(xyz) order!!!
-
-        # bbox_corners = tf.concat([bboxes[:, :, 6, :], bboxes[:, :, 0, :]], axis=-1)  # B * N * 6,  lhw(xyz) order!!!
-        # with tf.control_dependencies([tf.print(bboxes[0, 0])]):
-        nms_idx = NMS3D(bboxes, tf.reduce_max(proposals_output[..., -config.NC:], axis=-1), proposals_output[..., :2],
-                        nms_iou)  # Nnms * 2
-
-        bboxes_pred = tf.gather_nd(bboxes, nms_idx, name='bboxes_pred')  # Nnms * 8 * 3
-        class_scores_pred = tf.gather_nd(proposals_output[..., -config.NC:], nms_idx,
-                                         name='class_scores_pred')  # Nnms * C
-        batch_idx = tf.identity(nms_idx[:, 0], name='batch_idx')  # Nnms, this is used to identify between batches
 
     def build_graph(self, x, bboxes_xyz, bboxes_lwh, box3d_pts_label, semantic_labels,
                     heading_labels, heading_residuals,
@@ -188,11 +138,11 @@ class Model(ModelDesc):
         votes_xyz, votes_points = tf.slice(votes_xyz_points, (0, 0, 0), (-1, -1, 3)), \
             tf.slice(votes_xyz_points, (0, 0, 3), (-1, -1, -1))
 
-        proposals_xyz, proposals_output, _ = pointnet_sa_module(votes_xyz, votes_points, npoint=10, radius=0.3,
+        proposals_xyz, proposals_output, _ = pointnet_sa_module(votes_xyz, votes_points, npoint=config.PROPOSAL_NUM, radius=0.3,
                                                                 nsample=64, mlp=[128, 128, 128],
                                                                 mlp2=[128, 128, 5+2*config.NH+4*config.NS+config.NC],
                                                                 group_all=False, is_training=self.is_training(),
-                                                                scope='proposal_layer')
+                                                                bn_decay=None,scope='proposal_layer')
 
         object_pred, center_pred, heading_scores_pred, heading_residuals_normalized_pred, size_scores_pred, \
             size_residuals_normalized_pred, sementic_classes_pred = self.parse_outputs_to_tensor(proposals_output)

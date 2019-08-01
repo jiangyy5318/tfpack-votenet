@@ -10,12 +10,12 @@ cd ./grouping
 cd ../
 echo "compile grouping finished!"
 
-cd ./3d_nms
+cd ./nms_3d
 ./tf_nms3d_compile.sh
 cd ../
 echo "compile nms finished!"
 
-cd ./3d_interpolation/
+cd ./interpolation_3d
 ./tf_interpolate_compile.sh
 cd ../
 echo "compile 3d_interpolate finished!"
