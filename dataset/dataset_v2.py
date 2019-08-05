@@ -14,7 +14,7 @@ import numpy as np
 import cv2
 from PIL import Image
 from tensorpack import RNGDataFlow
-
+import config
 data_dir = ROOT_DIR
 
 type2class = {'bed': 0, 'table': 1, 'sofa': 2, 'chair': 3, 'toilet': 4, 'desk': 5, 'dresser': 6, 'night_stand': 7,
@@ -147,7 +147,7 @@ class sunrgbd_object(object):
         return sunutils.SUNRGBD_Calibration(calib_filename)
 
     def get_label_objects(self, idx):
-        assert (self.split == 'training')
+        # assert (self.split == 'training')
         label_filename = os.path.join(self.label_dir, '%06d.txt' % (idx))
         return sunutils.read_sunrgbd_label(label_filename)
 
@@ -363,7 +363,9 @@ class MyDataFlow(RNGDataFlow):
                     yield [pc_upright_camera[:, :3], np.array(bboxes_xyz), np.array(bboxes_lwh), np.array(bboxes_pts_label), np.array(semantic_labels),
                            np.array(heading_labels), np.array(heading_residuals), np.array(size_labels), np.array(size_residuals)]
             except Exception as ex:
+                print('*'*60)
                 print(ex)
+                print('#'*60)
 
 
 def get_box3d_dim_statistics(idx_filename, type_whitelist=['bed', 'table', 'sofa', 'chair', 'toilet', 'desk', 'dresser',

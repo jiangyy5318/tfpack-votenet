@@ -1,10 +1,15 @@
 from tensorpack.callbacks import Callback
 from tensorpack.utils import logger
-from dataset.dataset import *
+import os,sys
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(ROOT_DIR)
+from utils import sunutils
+from dataset.dataset_v2 import *
 import numpy as np
 import config
 from shapely.geometry import Polygon
 from tqdm import tqdm
+import itertools
 type_whitelist = ('bed', 'table', 'sofa', 'chair', 'toilet', 'desk', 'dresser', 'night_stand',
                                'bookshelf', 'bathtub')
 
@@ -121,9 +126,9 @@ def eval_mAP(dataset, pred_func, ious):
             pc_in_box_fov = pc_upright_camera[box_fov_inds, :]
             # Get frustum angle (according to center pixel in 2D BOX)
             # 3D BOX: Get pts velo in 3d box
-            box3d_pts_2d, box3d_pts_3d = compute_box_3d(obj, calib)
+            box3d_pts_2d, box3d_pts_3d = sunutils.compute_box_3d(obj, calib)
             box3d_pts_3d = calib.project_upright_depth_to_upright_camera(box3d_pts_3d)
-            _, inds = extract_pc_in_box3d(pc_in_box_fov, box3d_pts_3d)
+            _, inds = sunutils.extract_pc_in_box3d(pc_in_box_fov, box3d_pts_3d)
             # Get 3D BOX size
             box3d_size = np.array([2 * obj.l, 2 * obj.w, 2 * obj.h])
             box3d_center = (box3d_pts_3d[0, :] + box3d_pts_3d[6, :]) / 2

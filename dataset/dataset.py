@@ -147,7 +147,7 @@ class sunrgbd_object(object):
         return sunutils.SUNRGBD_Calibration(calib_filename)
 
     def get_label_objects(self, idx):
-        assert (self.split == 'training')
+        # assert (self.split == 'training')
         label_filename = os.path.join(self.label_dir, '%06d.txt' % (idx))
         return sunutils.read_sunrgbd_label(label_filename)
 

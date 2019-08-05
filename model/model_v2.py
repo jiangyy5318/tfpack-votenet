@@ -147,8 +147,8 @@ class Model(ModelDesc):
         object_pred, center_pred, heading_scores_pred, heading_residuals_normalized_pred, size_scores_pred, \
             size_residuals_normalized_pred, sementic_classes_pred = self.parse_outputs_to_tensor(proposals_output)
 
+        nms_iou = tf.get_variable('nms_iou', shape=[], initializer=tf.constant_initializer(0.25), trainable=False)
         if not self.is_training():
-            nms_iou = tf.get_variable('nms_iou', shape=[], initializer=tf.constant_initializer(0.25), trainable=False)
             def get_3d_bbox(box_size, heading_angle, center):
                 batch_size = tf.shape(heading_angle)[0]
                 c = tf.cos(heading_angle)
@@ -175,7 +175,7 @@ class Model(ModelDesc):
             # with tf.control_dependencies([tf.print(size_pred[0, 0, 2])]):
             center_pred = proposals_xyz + center_pred
             heading_cls_pred = tf.argmax(heading_scores_pred, axis=-1)
-            heading_cls_pred_onehot = tf.one_hot(heading_scores_pred, depth=config.NH, axis=-1)
+            heading_cls_pred_onehot = tf.one_hot(heading_cls_pred, depth=config.NH, axis=-1)
             heading_residual_pred = tf.reduce_sum(heading_cls_pred_onehot * heading_residuals_normalized_pred, axis=2)
             heading_pred = tf.floormod(
                 (tf.cast(heading_cls_pred, tf.float32) * 2 + heading_residual_pred) * np.pi / config.NH, 2 * np.pi)
@@ -210,10 +210,11 @@ class Model(ModelDesc):
         loss_center = huber_loss(center_dist, delta=2.0)
         loss_center = tf.identity(loss_center, name='center_loss')
 
-        loss_heading_score = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
-            logits=tf.gather_nd(heading_scores_pred, positive_pro_idx),
-            labels=tf.gather_nd(heading_labels, positive_gt_idx)), name='heading_loss')
+        #loss_heading_score = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+        #    logits=tf.gather_nd(heading_scores_pred, positive_pro_idx),
+        #    labels=tf.gather_nd(heading_labels, positive_gt_idx)), name='heading_loss')
 
+        loss_heading_score = 0.0
         heading_onehot_label = tf.one_hot(tf.gather_nd(heading_labels, positive_gt_idx),
                                           depth=config.NH, on_value=1, off_value=0, axis=-1)
         heading_residual_normalized_label = tf.gather_nd(heading_residuals, positive_gt_idx) / (np.pi / config.NH)
@@ -224,44 +225,46 @@ class Model(ModelDesc):
             heading_residual_normalized_label, delta=1.0)
         loss_heading_residual_normalized = tf.identity(loss_heading_residual_normalized, name='heading_residual_loss')
 
-        loss_size_class = tf.reduce_mean(
-            tf.nn.sparse_softmax_cross_entropy_with_logits(
-                logits=tf.gather_nd(size_scores_pred, positive_pro_idx),
-                labels=tf.gather_nd(size_labels, positive_gt_idx)), name='size_loss')
-
+        #loss_size_class = tf.reduce_mean(
+        #    tf.nn.sparse_softmax_cross_entropy_with_logits(
+        #        logits=tf.gather_nd(size_scores_pred, positive_pro_idx),
+        #        labels=tf.gather_nd(size_labels, positive_gt_idx)), name='size_loss')
+        loss_size_class = 0.0
         # size residual loss
         size_cls_gt_onehot = tf.one_hot(tf.gather_nd(size_labels, positive_gt_idx),
                                         depth=config.NS, on_value=1, off_value=0, axis=-1)
         size_cls_gt_onehot = tf.tile(tf.expand_dims(tf.cast(size_cls_gt_onehot, dtype=tf.float32), -1),
                                      [1, 1, 3])
-        size_residual_gt = tf.gather_nd(size_labels, positive_gt_idx)  # Np * 3
+        size_residual_gt = tf.gather_nd(size_residuals, positive_gt_idx)  # Np * 3
         size_residual_predicted = tf.reshape(tf.gather_nd(size_residuals_normalized_pred, positive_pro_idx),
                                              [-1, config.NS, 3])
-
+        print('size_residual_predicted:', size_residual_predicted.get_shape())
+        print('size_cls_gt_onehot:', size_cls_gt_onehot.get_shape())
+        print('size_residual_gt:', size_residual_gt.get_shape())
         size_normalized_dist = tf.norm(
             tf.reduce_sum(size_residual_predicted * tf.cast(size_cls_gt_onehot, dtype=tf.float32), axis=1) -
-            size_residual_gt, axis=-1)
+            tf.cast(size_residual_gt, dtype=tf.float32), axis=-1)
         loss_size_residual_normalized = huber_loss(size_normalized_dist, delta=1.0)
         loss_size_residual_normalized = tf.identity(loss_size_residual_normalized, name='size_residual_loss')
 
         # semantic loss:
-        loss_sementic_classes = tf.reduce_mean(
-            tf.nn.sparse_softmax_cross_entropy_with_logits(
-                logits=tf.gather_nd(sementic_classes_pred, positive_pro_idx),
-                labels=tf.gather_nd(semantic_labels, positive_gt_idx)), name='semantic_loss')
+        #loss_sementic_classes = tf.reduce_mean(
+        #    tf.nn.sparse_softmax_cross_entropy_with_logits(
+        #        logits=tf.gather_nd(sementic_classes_pred, positive_pro_idx),
+        #        labels=tf.gather_nd(semantic_labels, positive_gt_idx)), name='semantic_loss')
+        loss_sementic_classes = 0.0
 
         loss_box = loss_center + 0.1 * loss_heading_score + loss_heading_residual_normalized + \
                0.1 * loss_size_class + loss_size_residual_normalized
 
         total_cost = loss_vote + 0.5 * loss_object_ness + 1.0 * loss_box + 0.1 * loss_sementic_classes
 
-        summary.add_moving_summary(loss_center, loss_heading_score, loss_heading_residual_normalized,
-                                   loss_size_class, loss_size_residual_normalized, loss_vote, loss_object_ness,
-                                   loss_sementic_classes)
+        summary.add_moving_summary(loss_center, loss_heading_residual_normalized,
+                                   loss_size_residual_normalized, loss_vote, loss_object_ness)
         total_cost = tf.identity(total_cost, name='total_cost')
         summary.add_moving_summary(total_cost)
 
-        summary.add_param_summary(('.*/W', ['histogram', 'rms']))
+        #summary.add_param_summary(('.*/W', ['histogram', 'rms']))
         # the function should return the total cost to be optimized
         return total_cost
 
