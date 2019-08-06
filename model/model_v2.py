@@ -116,6 +116,7 @@ class Model(ModelDesc):
         arg_min = tf.argmin(proposal2center_distance, axis=-1)  # (B, N'), e:0~K
         votes_positive, votes_negative = tf.less(min_dist, config.POSITIVE_THRES), \
                                          tf.greater(min_dist, config.NEGATIVE_THRES)
+        # (B, N'), (B, N') concat --> (B, N' ,2)
         positive_pro_idx = tf.where(votes_positive)
         positive_gt_idx = tf.concat([tf.expand_dims(positive_pro_idx[:, 0], axis=-1),
                                      tf.expand_dims(tf.gather_nd(arg_min, positive_pro_idx), axis=-1)], axis=1)
@@ -142,7 +143,7 @@ class Model(ModelDesc):
                                                                 nsample=64, mlp=[128, 128, 128],
                                                                 mlp2=[128, 128, 5+2*config.NH+4*config.NS+config.NC],
                                                                 group_all=False, is_training=self.is_training(),
-                                                                bn_decay=None,scope='proposal_layer')
+                                                                bn_decay=None, scope='proposal_layer')
 
         object_pred, center_pred, heading_scores_pred, heading_residuals_normalized_pred, size_scores_pred, \
             size_residuals_normalized_pred, sementic_classes_pred = self.parse_outputs_to_tensor(proposals_output)
@@ -238,9 +239,9 @@ class Model(ModelDesc):
         size_residual_gt = tf.gather_nd(size_residuals, positive_gt_idx)  # Np * 3
         size_residual_predicted = tf.reshape(tf.gather_nd(size_residuals_normalized_pred, positive_pro_idx),
                                              [-1, config.NS, 3])
-        print('size_residual_predicted:', size_residual_predicted.get_shape())
-        print('size_cls_gt_onehot:', size_cls_gt_onehot.get_shape())
-        print('size_residual_gt:', size_residual_gt.get_shape())
+        # print('size_residual_predicted:', size_residual_predicted.get_shape())
+        # print('size_cls_gt_onehot:', size_cls_gt_onehot.get_shape())
+        # print('size_residual_gt:', size_residual_gt.get_shape())
         size_normalized_dist = tf.norm(
             tf.reduce_sum(size_residual_predicted * tf.cast(size_cls_gt_onehot, dtype=tf.float32), axis=1) -
             tf.cast(size_residual_gt, dtype=tf.float32), axis=-1)

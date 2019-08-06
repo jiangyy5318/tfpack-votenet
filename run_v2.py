@@ -1,9 +1,7 @@
 from tensorpack import *
 import tensorpack.utils
 import os, sys
-BASE_DIR = os.path.dirname(__file__)
-sys.path.append(BASE_DIR)
-ROOT_DIR = BASE_DIR
+ROOT_DIR = os.path.dirname(__file__)
 sys.path.append(ROOT_DIR)
 #sys.path.append(os.path.join(ROOT_DIR, 'dataset'))
 from model.model_v2 import Model
@@ -121,7 +119,6 @@ if __name__ == '__main__':
             # PeriodicTrigger(Evaluator('/data/jiangyy/sun_rgbd', 'train', 1,
             #                          idx_list=[int(e.strip()) for e in open('/data/jiangyy/sun_rgbd/train/val_data_idx.txt').readlines()][0:100])
             #                , every_k_epochs=20, before_train=False),
-            # MaxSaver('val_accuracy'),  # save the model with highest accuracy
             # MaxSaver('val_accuracy'),  # save the model with highest accuracy
         ],
         # steps_per_epoch=100,

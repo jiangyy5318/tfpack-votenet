@@ -17,7 +17,6 @@ import tensorflow as tf
 import numpy as np
 
 
-
 def sample_and_group(npoint, radius, nsample, xyz, points, knn=False, use_xyz=True):
     '''
     Input:

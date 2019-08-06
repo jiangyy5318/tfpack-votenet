@@ -1,7 +1,11 @@
 from tensorpack import *
 import tensorpack.utils
+import os, sys
+ROOT_DIR = os.path.dirname(__file__)
+sys.path.append(ROOT_DIR)
+#sys.path.append(os.path.join(ROOT_DIR, 'dataset'))
 from model.model import Model
-from dataset.dataset_v2 import MyDataFlow
+from dataset.dataset import MyDataFlow
 import multiprocessing
 from evaluator import Evaluator
 import six
