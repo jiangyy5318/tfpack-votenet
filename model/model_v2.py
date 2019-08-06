@@ -48,25 +48,18 @@ class Model(ModelDesc):
 
         l1_xyz, l1_points, l1_indices = pointnet_sa_module(l0_xyz, l0_points, npoint=2048, radius=0.2, nsample=64,
                                                            mlp=[64, 64, 128], mlp2=None, group_all=False,
-                                                           is_training=is_training, bn_decay=bn_decay,
                                                            scope='sa_layer1')
         l2_xyz, l2_points, l2_indices = pointnet_sa_module(l1_xyz, l1_points, npoint=1024, radius=0.4, nsample=64,
                                                            mlp=[128, 128, 256], mlp2=None, group_all=False,
-                                                           is_training=is_training, bn_decay=bn_decay,
                                                            scope='sa_layer2')
         l3_xyz, l3_points, l3_indices = pointnet_sa_module(l2_xyz, l2_points, npoint=512, radius=0.8, nsample=64,
                                                            mlp=[128, 128, 256], mlp2=None, group_all=False,
-                                                           is_training=is_training, bn_decay=bn_decay,
                                                            scope='sa_layer3')
         l4_xyz, l4_points, l4_indices = pointnet_sa_module(l3_xyz, l3_points, npoint=256, radius=1.2, nsample=64,
                                                            mlp=[128, 128, 256], mlp2=None, group_all=False,
-                                                           is_training=is_training, bn_decay=bn_decay,
                                                            scope='sa_layer4')
-        l3_points = pointnet_fp_module(l3_xyz, l4_xyz, l3_points, l4_points, [256, 256],
-                                       is_training, bn_decay, scope='fp_layer1')
-
-        l2_points = pointnet_fp_module(l2_xyz, l3_xyz, l2_points, l3_points, [256, 256],
-                                       is_training, bn_decay, scope='fp_layer2')
+        l3_points = pointnet_fp_module(l3_xyz, l4_xyz, l3_points, l4_points, [256, 256], scope='fp_layer1')
+        l2_points = pointnet_fp_module(l2_xyz, l3_xyz, l2_points, l3_points, [256, 256], scope='fp_layer2')
         return l2_xyz, l2_points
 
     @staticmethod
@@ -142,8 +135,9 @@ class Model(ModelDesc):
         proposals_xyz, proposals_output, _ = pointnet_sa_module(votes_xyz, votes_points, npoint=config.PROPOSAL_NUM, radius=0.3,
                                                                 nsample=64, mlp=[128, 128, 128],
                                                                 mlp2=[128, 128, 5+2*config.NH+4*config.NS+config.NC],
-                                                                group_all=False, is_training=self.is_training(),
-                                                                bn_decay=None, scope='proposal_layer')
+                                                                group_all=False,
+                                                                # is_training=self.is_training(), bn_decay=None,
+                                                                scope='proposal_layer')
 
         object_pred, center_pred, heading_scores_pred, heading_residuals_normalized_pred, size_scores_pred, \
             size_residuals_normalized_pred, sementic_classes_pred = self.parse_outputs_to_tensor(proposals_output)

@@ -7,10 +7,11 @@ sys.path.append(ROOT_DIR)
 from tensorpack import *
 import numpy as np
 from tensorpack.tfutils import get_current_tower_context, gradproc, optimizer, summary
-from utils.pointnet_util import (pointnet_sa_module, pointnet_fp_module)
+from utils.pointnet_util_new import (pointnet_sa_module, pointnet_fp_module)
 from dataset.dataset import class_mean_size
 from tf_ops.nms_3d.tf_nms3d import NMS3D
 import config
+import tensorflow as tf
 
 
 class Model(ModelDesc):
