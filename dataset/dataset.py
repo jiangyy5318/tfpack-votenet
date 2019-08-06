@@ -7,15 +7,15 @@ TODO: code formatting and clean-up.
 '''
 import os
 import sys
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(BASE_DIR)
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(ROOT_DIR)
 from utils import sunutils
 import numpy as np
 import cv2
 from PIL import Image
 from tensorpack import RNGDataFlow
-
-data_dir = BASE_DIR
+import config
+data_dir = ROOT_DIR
 
 type2class = {'bed': 0, 'table': 1, 'sofa': 2, 'chair': 3, 'toilet': 4, 'desk': 5, 'dresser': 6, 'night_stand': 7,
               'bookshelf': 8, 'bathtub': 9}
