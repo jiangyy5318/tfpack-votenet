@@ -14,7 +14,7 @@ from tf_ops.nms_3d.tf_nms3d import NMS3D
 import config
 from utils import tf_util
 from utils.tf_box_utils import tf_points_in_hull
-from utils.pointnet_util import (pointnet_sa_module, pointnet_fp_module)
+from utils.pointnet_util_new import (pointnet_sa_module, pointnet_fp_module)
 import tensorflow as tf
 
 

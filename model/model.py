@@ -72,8 +72,7 @@ class Model(ModelDesc):
         proposals_xyz, proposals_output, _ = pointnet_sa_module(votes_xyz, votes_points, npoint=config.PROPOSAL_NUM,
                                                                 radius=0.3, nsample=64, mlp=[128, 128, 128],
                                                                 mlp2=[128, 128, 5+2 * config.NH+4 * config.NS+config.NC],
-                                                                group_all=False, scope='proposal',
-                                                                sample_xyz=seeds_xyz)
+                                                                group_all=False, scope='proposal')
 
         nms_iou = tf.get_variable('nms_iou', shape=[], initializer=tf.constant_initializer(0.25), trainable=False)
         if not get_current_tower_context().is_training:
