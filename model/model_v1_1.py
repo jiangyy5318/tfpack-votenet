@@ -33,7 +33,7 @@ class Model(ModelDesc):
         for idx, num_out_channel in enumerate(mlp_layers):
             is_last_layer = (idx == (len(mlp_layers) - 1))
             net = Conv2D('voting_mlp_%d' % idx, net, num_out_channel, [1, 1], padding='VALID', stride=[1, 1],
-                         activation_fn=None if is_last_layer else BNReLU)
+                         activation=None if is_last_layer else BNReLU)
         return tf.squeeze(net, axis=[2])
 
     def build_graph(self, x, bboxes_xyz, bboxes_lwh, semantic_labels, heading_labels, heading_residuals, size_labels, size_residuals):
