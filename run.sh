@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 
-cd tf_logs
+cd tf_ops
 ./tf_compile.sh
 cd ../
 
-log=nohup.out
-rm -rf ${log}
-CUDA_VISIBLE_DEVICES=0,1 nohup python3 run.py &> ${log}&
+CUDA_VISIBLE_DEVICES=0,1 python3 run.py
