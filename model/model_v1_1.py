@@ -38,6 +38,36 @@ class Model(ModelDesc):
                          activation=None if is_last_layer else BNReLU)
         return tf.squeeze(net, axis=[2])
 
+    @staticmethod
+    def vote_reg_loss(seeds_xyz, votes_xyz, bboxes_xyz, box3d_pts_label):
+        """
+            seeds_xyz: (B, N', 3)
+            bboxes_xyz:  (B, BB, 3)
+            box3d_pts_label: (B, BB, 8, 3)
+            calc:
+            dist2center: (B, N', BB)
+            votes_assignment: (B, N'), value \in [0,BB)
+            in_surface: (B, N', BB)
+        """
+
+        dist2center = tf.norm(tf.expand_dims(seeds_xyz, 2) - tf.expand_dims(bboxes_xyz, 1), axis=-1)  # (B, N', BB)
+        votes_assignment = tf.argmin(dist2center, axis=-1)  # B * N, int
+        batch, seed_num, bb_num = dist2center.get_shape()
+
+        bboxes_xyz_to_votes_idx = tf.stack([tf.tile(tf.expand_dims(tf.range(batch), -1), [1, seed_num]),
+                                            votes_assignment], 2)  # B * N * 3
+
+        in_surface = tf_points_in_hull(seeds_xyz, box3d_pts_label)  # (B, N', BB)
+        in_surface_to_votes_idx = tf.stack([tf.tile(tf.expand_dims(tf.range(batch), axis=-1), [1, seed_num]),
+                                            tf.tile(tf.expand_dims(tf.range(seed_num), axis=0), [batch, 1]),
+                                            votes_assignment], axis=2)
+
+        vote_reg_loss = tf.reduce_mean(tf.norm(votes_xyz -
+                                               tf.gather_nd(bboxes_xyz, bboxes_xyz_to_votes_idx), ord=1, axis=-1) *
+                                       tf.cast(tf.gather_nd(in_surface, in_surface_to_votes_idx), tf.float32),
+                                       name='vote_reg_loss')
+        return vote_reg_loss
+
     def build_graph(self, x, bboxes_xyz, bboxes_lwh, box3d_pts_label, semantic_labels,
                     heading_labels, heading_residuals,
                     size_labels, size_residuals):
@@ -76,15 +106,16 @@ class Model(ModelDesc):
         # surface_ind = tf.equal(tf.count_nonzero(surface_ind, -1), 3)  # B * N * BB
         # surface_ind = tf.greater_equal(tf.count_nonzero(surface_ind, -1), 1)  # B * N, should be in at least one bbox
 
-        dist2center = tf.norm(tf.expand_dims(seeds_xyz, 2) - tf.expand_dims(bboxes_xyz, 1), axis=-1)
-        in_surface = tf.cast(tf_points_in_hull(seeds_xyz, box3d_pts_label), dtype=tf.float32)
-        votes_assignment = tf.argmin(dist2center, axis=-1, output_type=tf.int32)  # B * N, int
-        bboxes_xyz_votes_gt = tf.gather_nd(bboxes_xyz, tf.stack([
-            tf.tile(tf.expand_dims(tf.range(tf.shape(votes_assignment)[0]), -1), [1, tf.shape(votes_assignment)[1]]),
-            votes_assignment], 2))  # B * N * 3
-        vote_reg_loss = tf.reduce_mean(tf.norm(votes_xyz - bboxes_xyz_votes_gt, ord=1, axis=-1) *
-                                       tf.cast(in_surface, tf.float32), name='vote_reg_loss')
-        # 有问题, 不对
+        # dist2center = tf.norm(tf.expand_dims(seeds_xyz, 2) - tf.expand_dims(bboxes_xyz, 1), axis=-1)
+        # votes_assignment = tf.argmin(dist2center, axis=-1, output_type=tf.int32)  # B * N, int
+        # bboxes_xyz_votes_gt = tf.gather_nd(bboxes_xyz, tf.stack([
+        #     tf.tile(tf.expand_dims(tf.range(tf.shape(votes_assignment)[0]), -1), [1, tf.shape(votes_assignment)[1]]),
+        #     votes_assignment], 2))  # B * N * 3
+        #
+        # in_surface = tf_points_in_hull(seeds_xyz, box3d_pts_label)
+        # vote_reg_loss = tf.reduce_mean(tf.norm(votes_xyz - bboxes_xyz_votes_gt, ord=1, axis=-1) *
+        #                                tf.cast(in_surface, tf.float32), name='vote_reg_loss')
+        vote_reg_loss = self.vote_reg_loss(seeds_xyz, votes_xyz, bboxes_xyz, box3d_pts_label)
 
         # Proposal Module layers
         # Farthest point sampling on seeds
