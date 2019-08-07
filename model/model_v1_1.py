@@ -8,6 +8,7 @@ from tensorpack import *
 import numpy as np
 from tensorpack.tfutils import get_current_tower_context, gradproc, optimizer, summary
 from utils.pointnet_util_new import (pointnet_sa_module, pointnet_fp_module)
+from utils.tf_box_utils import tf_points_in_hull
 from dataset.dataset import class_mean_size
 from tf_ops.nms_3d.tf_nms3d import NMS3D
 import config
@@ -19,6 +20,7 @@ class Model(ModelDesc):
         return [tf.placeholder(tf.float32, [None, config.POINT_NUM , 3], 'points'),
                 tf.placeholder(tf.float32, [None, None, 3], 'bboxes_xyz'),
                 tf.placeholder(tf.float32, [None, None, 3], 'bboxes_lwh'),
+                tf.placeholder(tf.float32, [None, None, 8, 3], 'box3d_pts_label'),
                 tf.placeholder(tf.int32, (None, None), 'semantic_labels'),
                 tf.placeholder(tf.int32, (None, None), 'heading_labels'),
                 tf.placeholder(tf.float32, (None, None), 'heading_residuals'),
@@ -36,9 +38,12 @@ class Model(ModelDesc):
                          activation=None if is_last_layer else BNReLU)
         return tf.squeeze(net, axis=[2])
 
-    def build_graph(self, x, bboxes_xyz, bboxes_lwh, semantic_labels, heading_labels, heading_residuals, size_labels, size_residuals):
+    def build_graph(self, x, bboxes_xyz, bboxes_lwh, box3d_pts_label, semantic_labels,
+                    heading_labels, heading_residuals,
+                    size_labels, size_residuals):
+    # def build_graph(self, x, bboxes_xyz, bboxes_lwh, semantic_labels, heading_labels, heading_residuals, size_labels, size_residuals):
         l0_xyz = x
-        l0_points = x
+        l0_points = None
 
         # Set Abstraction layers
         l1_xyz, l1_points, l1_indices = pointnet_sa_module(l0_xyz, l0_points, npoint=2048, radius=0.2, nsample=64,
@@ -62,24 +67,24 @@ class Model(ModelDesc):
         # offset = tf.reshape(offset, [-1, 1024, 256 + 3])
         offset = self.hough_voting_mlp(seeds_points)
 
-        # votes_xyz, votes_points = tf.slice(votes_xyz_points, (0, 0, 0), (-1, -1, 3)), \
-        #     tf.slice(votes_xyz_points, (0, 0, 3), (-1, -1, -1))
-        # B * N * 3
         votes_xyz_points = tf.concat([seeds_xyz, seeds_points], 2) + offset
         votes_xyz, votes_points = tf.slice(votes_xyz_points, (0, 0, 0), (-1, -1, 3)), \
             tf.slice(votes_xyz_points, (0, 0, 3), (-1, -1, -1))
 
-        dist2center = tf.abs(tf.expand_dims(seeds_xyz, 2) - tf.expand_dims(bboxes_xyz, 1))
-        surface_ind = tf.less(dist2center, tf.expand_dims(bboxes_lwh, 1) / 2.)  # B * N * BB * 3, bool
-        surface_ind = tf.equal(tf.count_nonzero(surface_ind, -1), 3)  # B * N * BB
-        surface_ind = tf.greater_equal(tf.count_nonzero(surface_ind, -1), 1)  # B * N, should be in at least one bbox
 
-        dist2center_norm = tf.norm(dist2center, axis=-1)  # B * N * BB
-        votes_assignment = tf.argmin(dist2center_norm, -1, output_type=tf.int32)  # B * N, int
+        # surface_ind = tf.less(dist2center, tf.expand_dims(bboxes_lwh, 1) / 2.)  # B * N * BB * 3, bool
+        # surface_ind = tf.equal(tf.count_nonzero(surface_ind, -1), 3)  # B * N * BB
+        # surface_ind = tf.greater_equal(tf.count_nonzero(surface_ind, -1), 1)  # B * N, should be in at least one bbox
+
+        dist2center = tf.norm(tf.expand_dims(seeds_xyz, 2) - tf.expand_dims(bboxes_xyz, 1), axis=-1)
+        in_surface = tf.cast(tf_points_in_hull(seeds_xyz, box3d_pts_label), dtype=tf.float32)
+        votes_assignment = tf.argmin(dist2center, axis=-1, output_type=tf.int32)  # B * N, int
         bboxes_xyz_votes_gt = tf.gather_nd(bboxes_xyz, tf.stack([
             tf.tile(tf.expand_dims(tf.range(tf.shape(votes_assignment)[0]), -1), [1, tf.shape(votes_assignment)[1]]),
             votes_assignment], 2))  # B * N * 3
-        vote_reg_loss = tf.reduce_mean(tf.norm(votes_xyz - bboxes_xyz_votes_gt, ord=1, axis=-1) * tf.cast(surface_ind, tf.float32), name='vote_reg_loss')
+        vote_reg_loss = tf.reduce_mean(tf.norm(votes_xyz - bboxes_xyz_votes_gt, ord=1, axis=-1) *
+                                       tf.cast(in_surface, tf.float32), name='vote_reg_loss')
+        # 有问题, 不对
 
         # Proposal Module layers
         # Farthest point sampling on seeds
