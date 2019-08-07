@@ -51,15 +51,17 @@ class Model(ModelDesc):
         """
 
         dist2center = tf.norm(tf.expand_dims(seeds_xyz, 2) - tf.expand_dims(bboxes_xyz, 1), axis=-1)  # (B, N', BB)
-        votes_assignment = tf.argmin(dist2center, axis=-1)  # B * N, int
-        batch, seed_num, bb_num = dist2center.get_shape()
+        votes_assignment = tf.argmin(dist2center, axis=-1, output_type=tf.int32)  # B * N, int
 
-        bboxes_xyz_to_votes_idx = tf.stack([tf.tile(tf.expand_dims(tf.range(batch), -1), [1, seed_num]),
+        bboxes_xyz_to_votes_idx = tf.stack([tf.tile(tf.expand_dims(tf.range(tf.shape(votes_assignment)[0]), -1),
+                                                    [1, tf.shape(votes_assignment)[1]]),
                                             votes_assignment], 2)  # B * N * 3
 
         in_surface = tf_points_in_hull(seeds_xyz, box3d_pts_label)  # (B, N', BB)
-        in_surface_to_votes_idx = tf.stack([tf.tile(tf.expand_dims(tf.range(batch), axis=-1), [1, seed_num]),
-                                            tf.tile(tf.expand_dims(tf.range(seed_num), axis=0), [batch, 1]),
+        in_surface_to_votes_idx = tf.stack([tf.tile(tf.expand_dims(tf.range(tf.shape(votes_assignment)[0]), axis=-1),
+                                                    [1, tf.shape(votes_assignment)[1]]),
+                                            tf.tile(tf.expand_dims(tf.range(tf.shape(votes_assignment)[1]), axis=0),
+                                                    [tf.shape(votes_assignment)[0], 1]),
                                             votes_assignment], axis=2)
 
         vote_reg_loss = tf.reduce_mean(tf.norm(votes_xyz -
