@@ -151,96 +151,96 @@ class sunrgbd_object(object):
         label_filename = os.path.join(self.label_dir, '%06d.txt' % (idx))
         return sunutils.read_sunrgbd_label(label_filename)
 
-
-def dataset_viz(show_frustum=False):
-    sunrgbd = sunrgbd_object(data_dir)
-    idxs = np.array(range(1, len(sunrgbd) + 1))
-    np.random.shuffle(idxs)
-    for idx in range(len(sunrgbd)):
-        data_idx = idxs[idx]
-        print('--------------------', data_idx)
-        pc = sunrgbd.get_depth(data_idx)
-        print(pc.shape)
-
-        # Project points to image
-        calib = sunrgbd.get_calibration(data_idx)
-        uv, d = calib.project_upright_depth_to_image(pc[:, 0:3])
-        print(uv)
-        print(d)
-        input()
-
-        import matplotlib.pyplot as plt
-        cmap = plt.cm.get_cmap('hsv', 256)
-        cmap = np.array([cmap(i) for i in range(256)])[:, :3] * 255
-
-        img = sunrgbd.get_image(data_idx)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        for i in range(uv.shape[0]):
-            depth = d[i]
-            color = cmap[int(120.0 / depth), :]
-            cv2.circle(img, (int(np.round(uv[i, 0])), int(np.round(uv[i, 1]))), 2, color=tuple(color), thickness=-1)
-        Image.fromarray(img).show()
-        input()
-
-        # Load box labels
-        objects = sunrgbd.get_label_objects(data_idx)
-        print(objects)
-        input()
-
-        # Draw 2D boxes on image
-        img = sunrgbd.get_image(data_idx)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        for i, obj in enumerate(objects):
-            cv2.rectangle(img, (int(obj.xmin), int(obj.ymin)), (int(obj.xmax), int(obj.ymax)), (0, 255, 0), 2)
-            cv2.putText(img, '%d %s' % (i, obj.classname), (max(int(obj.xmin), 15), max(int(obj.ymin), 15)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
-        Image.fromarray(img).show()
-        input()
-
-        # Draw 3D boxes on depth points
-        box3d = []
-        ori3d = []
-        for obj in objects:
-            corners_3d_image, corners_3d = sunutils.compute_box_3d(obj, calib)
-            ori_3d_image, ori_3d = sunutils.compute_orientation_3d(obj, calib)
-            print('Corners 3D: ', corners_3d)
-            box3d.append(corners_3d)
-            ori3d.append(ori_3d)
-        input()
-
-        bgcolor = (0, 0, 0)
-        fig = mlab.figure(figure=None, bgcolor=bgcolor, fgcolor=None, engine=None, size=(1600, 1000))
-        mlab.points3d(pc[:, 0], pc[:, 1], pc[:, 2], pc[:, 2], mode='point', colormap='gnuplot', figure=fig)
-        mlab.points3d(0, 0, 0, color=(1, 1, 1), mode='sphere', scale_factor=0.2)
-        draw_gt_boxes3d(box3d, fig=fig)
-        for i in range(len(ori3d)):
-            ori_3d = ori3d[i]
-            x1, y1, z1 = ori_3d[0, :]
-            x2, y2, z2 = ori_3d[1, :]
-            mlab.plot3d([x1, x2], [y1, y2], [z1, z2], color=(0.5, 0.5, 0.5), tube_radius=None, line_width=1, figure=fig)
-        mlab.orientation_axes()
-        for i, obj in enumerate(objects):
-            print('Orientation: ', i, np.arctan2(obj.orientation[1], obj.orientation[0]))
-            print('Dimension: ', i, obj.l, obj.w, obj.h)
-        input()
-
-        if show_frustum:
-            img = sunrgbd.get_image(data_idx)
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            for i, obj in enumerate(objects):
-                box2d_fov_inds = (uv[:, 0] < obj.xmax) & (uv[:, 0] >= obj.xmin) & (uv[:, 1] < obj.ymax) & (
-                            uv[:, 1] >= obj.ymin)
-                box2d_fov_pc = pc[box2d_fov_inds, :]
-                img2 = np.copy(img)
-                cv2.rectangle(img2, (int(obj.xmin), int(obj.ymin)), (int(obj.xmax), int(obj.ymax)), (0, 255, 0), 2)
-                cv2.putText(img2, '%d %s' % (i, obj.classname), (max(int(obj.xmin), 15), max(int(obj.ymin), 15)),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
-                Image.fromarray(img2).show()
-
-                fig = mlab.figure(figure=None, bgcolor=bgcolor, fgcolor=None, engine=None, size=(1000, 1000))
-                mlab.points3d(box2d_fov_pc[:, 0], box2d_fov_pc[:, 1], box2d_fov_pc[:, 2], box2d_fov_pc[:, 2],
-                              mode='point', colormap='gnuplot', figure=fig)
-                input()
+#
+# def dataset_viz(show_frustum=False):
+#     sunrgbd = sunrgbd_object(data_dir)
+#     idxs = np.array(range(1, len(sunrgbd) + 1))
+#     np.random.shuffle(idxs)
+#     for idx in range(len(sunrgbd)):
+#         data_idx = idxs[idx]
+#         print('--------------------', data_idx)
+#         pc = sunrgbd.get_depth(data_idx)
+#         print(pc.shape)
+#
+#         # Project points to image
+#         calib = sunrgbd.get_calibration(data_idx)
+#         uv, d = calib.project_upright_depth_to_image(pc[:, 0:3])
+#         print(uv)
+#         print(d)
+#         input()
+#
+#         import matplotlib.pyplot as plt
+#         cmap = plt.cm.get_cmap('hsv', 256)
+#         cmap = np.array([cmap(i) for i in range(256)])[:, :3] * 255
+#
+#         img = sunrgbd.get_image(data_idx)
+#         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+#         for i in range(uv.shape[0]):
+#             depth = d[i]
+#             color = cmap[int(120.0 / depth), :]
+#             cv2.circle(img, (int(np.round(uv[i, 0])), int(np.round(uv[i, 1]))), 2, color=tuple(color), thickness=-1)
+#         Image.fromarray(img).show()
+#         input()
+#
+#         # Load box labels
+#         objects = sunrgbd.get_label_objects(data_idx)
+#         print(objects)
+#         input()
+#
+#         # Draw 2D boxes on image
+#         img = sunrgbd.get_image(data_idx)
+#         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+#         for i, obj in enumerate(objects):
+#             cv2.rectangle(img, (int(obj.xmin), int(obj.ymin)), (int(obj.xmax), int(obj.ymax)), (0, 255, 0), 2)
+#             cv2.putText(img, '%d %s' % (i, obj.classname), (max(int(obj.xmin), 15), max(int(obj.ymin), 15)),
+#                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
+#         Image.fromarray(img).show()
+#         input()
+#
+#         # Draw 3D boxes on depth points
+#         box3d = []
+#         ori3d = []
+#         for obj in objects:
+#             corners_3d_image, corners_3d = sunutils.compute_box_3d(obj, calib)
+#             ori_3d_image, ori_3d = sunutils.compute_orientation_3d(obj, calib)
+#             print('Corners 3D: ', corners_3d)
+#             box3d.append(corners_3d)
+#             ori3d.append(ori_3d)
+#         input()
+#
+#         bgcolor = (0, 0, 0)
+#         fig = mlab.figure(figure=None, bgcolor=bgcolor, fgcolor=None, engine=None, size=(1600, 1000))
+#         mlab.points3d(pc[:, 0], pc[:, 1], pc[:, 2], pc[:, 2], mode='point', colormap='gnuplot', figure=fig)
+#         mlab.points3d(0, 0, 0, color=(1, 1, 1), mode='sphere', scale_factor=0.2)
+#         draw_gt_boxes3d(box3d, fig=fig)
+#         for i in range(len(ori3d)):
+#             ori_3d = ori3d[i]
+#             x1, y1, z1 = ori_3d[0, :]
+#             x2, y2, z2 = ori_3d[1, :]
+#             mlab.plot3d([x1, x2], [y1, y2], [z1, z2], color=(0.5, 0.5, 0.5), tube_radius=None, line_width=1, figure=fig)
+#         mlab.orientation_axes()
+#         for i, obj in enumerate(objects):
+#             print('Orientation: ', i, np.arctan2(obj.orientation[1], obj.orientation[0]))
+#             print('Dimension: ', i, obj.l, obj.w, obj.h)
+#         input()
+#
+#         if show_frustum:
+#             img = sunrgbd.get_image(data_idx)
+#             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+#             for i, obj in enumerate(objects):
+#                 box2d_fov_inds = (uv[:, 0] < obj.xmax) & (uv[:, 0] >= obj.xmin) & (uv[:, 1] < obj.ymax) & (
+#                             uv[:, 1] >= obj.ymin)
+#                 box2d_fov_pc = pc[box2d_fov_inds, :]
+#                 img2 = np.copy(img)
+#                 cv2.rectangle(img2, (int(obj.xmin), int(obj.ymin)), (int(obj.xmax), int(obj.ymax)), (0, 255, 0), 2)
+#                 cv2.putText(img2, '%d %s' % (i, obj.classname), (max(int(obj.xmin), 15), max(int(obj.ymin), 15)),
+#                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
+#                 Image.fromarray(img2).show()
+#
+#                 fig = mlab.figure(figure=None, bgcolor=bgcolor, fgcolor=None, engine=None, size=(1000, 1000))
+#                 mlab.points3d(box2d_fov_pc[:, 0], box2d_fov_pc[:, 1], box2d_fov_pc[:, 2], box2d_fov_pc[:, 2],
+#                               mode='point', colormap='gnuplot', figure=fig)
+#                 input()
 
 
 
@@ -349,16 +349,17 @@ class MyDataFlow(RNGDataFlow):
                     heading_residuals.append(angle_residual / (np.pi / config.NH))
                     size_labels.append(size_class)
                     size_residuals.append(size_residual / type_mean_size[obj.classname])
-
                 if len(bboxes_xyz) > 0:
-                    if self.training:
-                        if flip_x:
-                            pc_upright_camera[..., 0] = -pc_upright_camera[..., 0]
-                        if flip_z:
-                            pc_upright_camera[..., 2] = -pc_upright_camera[..., 2]
-                        pc_upright_camera[:, :3] = (roty(rand_roty_angle) @ pc_upright_camera[:, :3].T).T
-                        pc_upright_camera[:, :3] = pc_upright_camera[:, :3] * rand_scale
-
+                    # if self.training:
+                    #     if flip_x:
+                    #         pc_upright_camera[..., 0] = -pc_upright_camera[..., 0]
+                    #     if flip_z:
+                    #         pc_upright_camera[..., 2] = -pc_upright_camera[..., 2]
+                    #     pc_upright_camera[:, :3] = (roty(rand_roty_angle) @ pc_upright_camera[:, :3].T).Tt
+                    #     pc_upright_camera[:, :3] = pc_upright_camera[:, :3] * rand_scale
+                    print('semantic_labels:',semantic_labels)
+                    print('heading_labels:', heading_labels)
+                    print('size_residuals:', size_labels)
                     yield [pc_upright_camera[:, :3], np.array(bboxes_xyz), np.array(bboxes_lwh), np.array(semantic_labels),
                            np.array(heading_labels), np.array(heading_residuals), np.array(size_labels), np.array(size_residuals)]
             except Exception as ex:
@@ -402,37 +403,42 @@ if __name__ == '__main__':
         import mayavi.mlab as mlab
         import config
 
-        sys.path.append(os.path.join(BASE_DIR, '../../mayavi'))
-        from utils.viz_utils import draw_gt_boxes3d
+        # sys.path.append(os.path.join(BASE_DIR, '../../mayavi'))
+        # from utils.viz_utils import draw_gt_boxes3d
 
         median_list = []
-        dataset = MyDataFlow('/media/neil/DATA/mysunrgbd', 'training')
+
+        dataset = MyDataFlow('/data/jiangyy/sun_rgbd', 'train',
+                               idx_list=[int(e.strip()) for e in
+                                         open('/data/jiangyy/sun_rgbd/train/train_data_idx.txt').readlines()][0:64])
+
         dataset.reset_state()
         # print(type(dataset.input_list[0][0, 0]))
         # print(dataset.input_list[0].shape)
         # print(dataset.input_list[2].shape)
         # input()
         for obj in dataset:
+            print(len(obj[1]))
             for i in range(len(obj[1])):
                 data = [o[i] for o in obj]
                 print('Center: ', data[1], 'angle_class: ', data[4], 'angle_res:', data[5], 'size_class: ', data[6],
                       'size_residual:', data[7], 'real_size:', type_mean_size[class2type[data[6]]] + data[7])
-                box3d_from_label = get_3d_box(class2size(data[6], data[7] * type_mean_size[class2type[data[6]]]), class2angle(data[4], data[5] * np.pi / config.NH, config.NH), data[1])
-                # raw_input()
-
-                ## Recover original labels
-                # rot_angle = dataset.get_center_view_rot_angle(i)
-                # print dataset.id_list[i]
-                # print from_prediction_to_label_format(data[2], data[3], data[4], data[5], data[6], rot_angle)
-
-                ps = obj[0]
-                fig = mlab.figure(figure=None, bgcolor=(0.4, 0.4, 0.4), fgcolor=None, engine=None, size=(1000, 500))
-                mlab.points3d(ps[:, 0], ps[:, 1], ps[:, 2], mode='point', colormap='gnuplot', scale_factor=1,
-                              figure=fig)
-                mlab.points3d(0, 0, 0, color=(1, 1, 1), mode='sphere', scale_factor=0.2, figure=fig)
-                # draw_gt_boxes3d([dataset.get_center_view_box3d(i)], fig)
-                draw_gt_boxes3d([box3d_from_label], fig, color=(1, 0, 0))
-                mlab.orientation_axes()
-                print(ps[0:10, :])
-                mlab.show()
+                # box3d_from_label = get_3d_box(class2size(data[6], data[7] * type_mean_size[class2type[data[6]]]), class2angle(data[4], data[5] * np.pi / config.NH, config.NH), data[1])
+                # # raw_input()
+                #
+                # ## Recover original labels
+                # # rot_angle = dataset.get_center_view_rot_angle(i)
+                # # print dataset.id_list[i]
+                # # print from_prediction_to_label_format(data[2], data[3], data[4], data[5], data[6], rot_angle)
+                #
+                # ps = obj[0]
+                # fig = mlab.figure(figure=None, bgcolor=(0.4, 0.4, 0.4), fgcolor=None, engine=None, size=(1000, 500))
+                # mlab.points3d(ps[:, 0], ps[:, 1], ps[:, 2], mode='point', colormap='gnuplot', scale_factor=1,
+                #               figure=fig)
+                # mlab.points3d(0, 0, 0, color=(1, 1, 1), mode='sphere', scale_factor=0.2, figure=fig)
+                # # draw_gt_boxes3d([dataset.get_center_view_box3d(i)], fig)
+                # draw_gt_boxes3d([box3d_from_label], fig, color=(1, 0, 0))
+                # mlab.orientation_axes()
+                # print(ps[0:10, :])
+                # mlab.show()
     # extract_roi_seg_from_rgb_detection('FPN_384x384', 'training', 'fcn_det_val.zip.pickle', valid_id_list=[int(line.rstrip()) for line in open('/home/rqi/Data/mysunrgbd/training/val_data_idx.txt')], viz=True)

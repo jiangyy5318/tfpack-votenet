@@ -1,0 +1,4 @@
+model_v0_0: implemented by VoteNetQQ, only add some tensor name;
+model_V0_1: add obj_cls_loss 's alternative implementation.
+model_v1_1: add tf_inhull; hough_mlp last layer no relu or bn;
+model_v1_2: add tf_inhull; hough_mlp last layer no relu or bn;

@@ -13,9 +13,11 @@ from utils import tf_util
 from tf_ops.sampling.tf_sampling import (farthest_point_sample, gather_point)
 from tf_ops.grouping.tf_grouping import (query_ball_point, group_point, knn_point)
 from tf_ops.interpolation_3d.tf_interpolate import (three_nn, three_interpolate)
+# from tensorpack import *
+from tensorpack import (Conv2D, BNReLU)
+from tensorpack.tfutils import summary
 import tensorflow as tf
 import numpy as np
-from tensorpack import (Conv2D, BNReLU)
 
 
 def sample_and_group(npoint, radius, nsample, xyz, points, knn=False, use_xyz=True):
@@ -125,12 +127,9 @@ def pointnet_sa_module(xyz, points, npoint, radius, nsample, mlp, mlp2, group_al
         else:
             new_xyz, new_points, idx, grouped_xyz = sample_and_group(npoint, radius, nsample, xyz, points, knn, use_xyz)
 
-        # print('new_xyz:', new_xyz.get_shape(), 'new_points:', new_points.get_shape(), 'group_xyz:', grouped_xyz.get_shape())
-
         # Point Feature Embedding
         if use_nchw: new_points = tf.transpose(new_points, [0, 3, 1, 2])
         for i, num_out_channel in enumerate(mlp):
-            # tensorpack no is_training?
             new_points = Conv2D("conv%d" % i, new_points, num_out_channel, [1, 1], padding='VALID',
                                 activation=BNReLU if bn else tf.nn.relu, data_format=data_format)
         if use_nchw: new_points = tf.transpose(new_points, [0, 2, 3, 1])
@@ -155,18 +154,14 @@ def pointnet_sa_module(xyz, points, npoint, radius, nsample, mlp, mlp2, group_al
             avg_points = tf.reduce_mean(new_points, axis=[2], keepdims=True, name='avgpool')
             new_points = tf.concat([avg_points, max_points], axis=-1)
 
-        # print('after group new_points:', new_points.get_shape())
-
         # [Optional] Further Processing
         if mlp2 is not None:
             if use_nchw: new_points = tf.transpose(new_points, [0, 3, 1, 2])
             for i, num_out_channel in enumerate(mlp2):
-                # tensorpack no is_training?
                 new_points = Conv2D("conv_post_%d" % i, new_points, num_out_channel, [1, 1], padding='VALID',
-                                    activation=BNReLU if bn else tf.nn.relu, data_format=data_format)
+                                    activation=BNReLU if (i < len(mlp2) - 1) else None, data_format=data_format)
             if use_nchw: new_points = tf.transpose(new_points, [0, 2, 3, 1])
-
-        new_points = tf.squeeze(new_points, [2])  # (batch_size, npoints, mlp2[-1])
+        new_points = tf.squeeze(new_points, [2])
         return new_xyz, new_points, idx
 
 

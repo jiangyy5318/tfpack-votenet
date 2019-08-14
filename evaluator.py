@@ -226,7 +226,7 @@ class Evaluator(Callback):
 
 if __name__ == '__main__':
     import itertools
-    from model.model import Model
+    from model.model_bak import Model
     mAPs = eval_mAP(sunrgbd_object('/home/neil/mysunrgbd', 'training', idx_list=list(range(11, 21))), OfflinePredictor(PredictConfig(
             model=Model(),
             session_init=SaverRestore('./train_log/run/checkpoint'),

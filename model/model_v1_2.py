@@ -29,6 +29,20 @@ class Model(ModelDesc):
                 ]
 
     @staticmethod
+    def parse_outputs_to_tensor(proposals_output):
+        object_pred = tf.slice(proposals_output, [0, 0, 0], [-1, -1, 2])
+        center_pred = tf.slice(proposals_output, [0, 0, 2], [-1, -1, 3])
+        heading_scores_pred = tf.slice(proposals_output, [0, 0, 5], [-1, -1, config.NH])
+        heading_residuals_normalized_pred = tf.slice(proposals_output, [0, 0, 5 + config.NH], [-1, -1, config.NH])
+        size_scores_pred = tf.slice(proposals_output, [0, 0, 5 + config.NH * 2], [-1, -1, config.NS])
+        size_residuals_normalized_pred = tf.slice(proposals_output, [0, 0, 5 + config.NH * 2 + config.NS],
+                                             [-1, -1, config.NS * 3])
+        size_residuals_normalized_pred = tf.reshape(size_residuals_normalized_pred, [-1, config.PROPOSAL_NUM, config.NS, 3])
+        sementic_classes_pred = tf.slice(proposals_output, [0, 0, 5 + config.NH * 2 + config.NS * 4], [-1, -1, -1])
+        return object_pred, center_pred, heading_scores_pred, heading_residuals_normalized_pred, \
+            size_scores_pred, size_residuals_normalized_pred, sementic_classes_pred
+
+    @staticmethod
     def hough_voting_mlp(seed):
         net = tf.expand_dims(seed, axis=[2])
         mlp_layers = [256, 256, 256 + 3]
@@ -107,6 +121,9 @@ class Model(ModelDesc):
                                                                 mlp2=[128, 128, 5+2 * config.NH+4 * config.NS+config.NC],
                                                                 group_all=False, scope='proposal')
 
+        object_scores_pred, center_scores_pred, heading_scores_pred, heading_residuals_normalized_pred, size_scores_pred, \
+            size_residuals_normalized_pred, sementic_classes_pred = self.parse_outputs_to_tensor(proposals_output)
+
         nms_iou = tf.get_variable('nms_iou', shape=[], initializer=tf.constant_initializer(0.25), trainable=False)
         if not get_current_tower_context().is_training:
             def get_3d_bbox(box_size, heading_angle, center):
@@ -129,7 +146,7 @@ class Model(ModelDesc):
             size_residual_pred = tf.reduce_sum(tf.expand_dims(size_cls_pred_onehot, -1)
                                                * tf.reshape(proposals_output[..., 5+2 * config.NH + config.NS:5+2 * config.NH + 4 * config.NS], (-1, config.PROPOSAL_NUM, config.NS, 3)), axis=2)
             size_pred = tf.gather_nd(class_mean_size_tf, tf.expand_dims(size_cls_pred, -1)) * tf.maximum(1 + size_residual_pred, 1e-6)  # B * N * 3: size
-            # with tf.control_dependencies([tf.print(size_pred[0, 0, 2])]):
+
             center_pred = proposals_xyz + proposals_output[..., 2:5]  # B * N * 3
             heading_cls_pred = tf.argmax(proposals_output[..., 5:5+config.NH], axis=-1)
             heading_cls_pred_onehot = tf.one_hot(heading_cls_pred, depth=config.NH, axis=-1)
@@ -150,106 +167,112 @@ class Model(ModelDesc):
 
             return
 
-        # calculate positive and negative proposal idxes
-        bboxes_xyz_gt = bboxes_xyz  # B * BB * 3
-        bboxes_labels_gt = semantic_labels  # B * BB
-        bboxes_heading_labels_gt = heading_labels
-        bboxes_heading_residuals_gt = heading_residuals
-        bboxes_size_labels_gt = size_labels
-        bboxes_size_residuals_gt = size_residuals
-
-        dist_mat = tf.norm(tf.expand_dims(proposals_xyz, 2) - tf.expand_dims(bboxes_xyz_gt, 1), axis=-1)  # B * PR * BB
-        bboxes_assignment = tf.argmin(dist_mat, axis=-1)  # B * PR
+        dist_mat = tf.norm(tf.expand_dims(proposals_xyz, axis=[2]) - tf.expand_dims(bboxes_xyz, axis=[1]), axis=-1)
         min_dist = tf.reduce_min(dist_mat, axis=-1)
+        bboxes_assignment = tf.argmin(dist_mat, axis=-1)  # (B, N'), e:0~K
 
         thres_mid = tf.reduce_mean(min_dist, axis=-1, keepdims=True)
         thres_min = tf.reduce_min(min_dist, axis=-1, keepdims=True)
         thres_max = tf.reduce_max(min_dist, axis=-1, keepdims=True)
         POSITIVE_THRES, NEGATIVE_THRES = (thres_mid + thres_min) / 2.0, (thres_mid + thres_max) / 2.0
 
-        positive_idxes = tf.where(min_dist < POSITIVE_THRES)
-        negative_idxes = tf.where(min_dist > NEGATIVE_THRES)
-        positive_gt_idxes = tf.stack([positive_idxes[:, 0], tf.gather_nd(bboxes_assignment, positive_idxes)], axis=1)
+        positive_pro_idx = tf.where(min_dist < POSITIVE_THRES)
+        negative_pro_idx = tf.where(min_dist > NEGATIVE_THRES)
+
+        positive_gt_idx = tf.stack([positive_pro_idx[:, 0], tf.gather_nd(bboxes_assignment, positive_pro_idx)], axis=1)
 
         # objectiveness loss
-        pos_obj_cls_score = tf.gather_nd(proposals_output[..., :2], positive_idxes)
-        pos_obj_cls_gt = tf.ones([tf.shape(positive_idxes)[0]], dtype=tf.int32)
-        neg_obj_cls_score = tf.gather_nd(proposals_output[..., :2], negative_idxes)
-        neg_obj_cls_gt = tf.zeros([tf.shape(negative_idxes)[0]], dtype=tf.int32)
-        obj_cls_loss = tf.identity((tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=pos_obj_cls_score, labels=pos_obj_cls_gt))
-                                   + tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=neg_obj_cls_score, labels=neg_obj_cls_gt))) / 2.0, name='obj_cls_loss')
+        pos_obj_cls_score = tf.gather_nd(object_scores_pred, positive_pro_idx)
+        pos_obj_cls_gt = tf.ones([tf.shape(positive_pro_idx)[0]], dtype=tf.int32)
+        neg_obj_cls_score = tf.gather_nd(object_scores_pred, negative_pro_idx)
+        neg_obj_cls_gt = tf.zeros([tf.shape(negative_pro_idx)[0]], dtype=tf.int32)
+        pos_obj_cls_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=pos_obj_cls_score,labels=pos_obj_cls_gt))
+        neg_obj_cls_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=neg_obj_cls_score,labels=neg_obj_cls_gt))
+        obj_cls_loss = tf.identity((pos_obj_cls_loss + neg_obj_cls_loss) / 2.0, name='obj_cls_loss')
         obj_correct = tf.concat([tf.cast(tf.nn.in_top_k(pos_obj_cls_score, pos_obj_cls_gt, 1), tf.float32),
-                                 tf.cast(tf.nn.in_top_k(neg_obj_cls_score, neg_obj_cls_gt, 1), tf.float32)], axis=0, name='obj_correct')
+                                 tf.cast(tf.nn.in_top_k(neg_obj_cls_score, neg_obj_cls_gt, 1), tf.float32)], axis=0,
+                                name='obj_correct')
         obj_accuracy = tf.reduce_mean(obj_correct, name='obj_accuracy')
 
+        # positive_gt_idx = tf.concat([tf.expand_dims(positive_pro_idx[:, 0], axis=-1),
+        #                              tf.expand_dims(tf.gather_nd(arg_min, positive_pro_idx), axis=-1)], axis=1)
+        #
+        # # object_ness loss
+        # object_ness_label = tf.cast(
+        #     tf.concat((tf.expand_dims(votes_negative, [-1]),
+        #                tf.expand_dims(votes_positive, [-1])), axis=2), tf.float32)
+        # obj_cls_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels=object_ness_label,
+        #                                                                          logits=object_pred),
+        #                               name='object_loss')
+
         # center regression losses
-        center_gt = tf.gather_nd(bboxes_xyz_gt, positive_gt_idxes)
-        delta_predicted = tf.gather_nd(proposals_output[..., 2:5], positive_idxes)
-        delta_gt = center_gt - tf.gather_nd(proposals_xyz, positive_idxes)
-        center_loss = tf.reduce_mean(tf.reduce_sum(tf.losses.huber_loss(labels=delta_gt, predictions=delta_predicted, reduction=tf.losses.Reduction.NONE), axis=-1))
+        # positive_gt_idx: (B,N',2)
+        center_gt = tf.gather_nd(bboxes_xyz, positive_gt_idx)
+        center_pred = tf.gather_nd(proposals_xyz + center_scores_pred, positive_gt_idx)
+        center_loss_left = tf.reduce_mean(tf.reduce_sum(tf.losses.huber_loss(labels=center_gt,
+                                                                             predictions=center_pred,
+                                                                             reduction=tf.losses.Reduction.NONE),
+                                                        axis=-1),
+                                          name='center_left_loss')
 
-        # Appendix A1: chamfer loss, assignment at one bbox to each gt bbox
-        bboxes_assignment_dual = tf.argmin(dist_mat, axis=1)  # B * BB
-        batch_idx = tf.tile(tf.expand_dims(tf.range(tf.shape(bboxes_assignment_dual, out_type=tf.int64)[0]), axis=-1), [1, tf.shape(bboxes_assignment_dual)[1]])  # B * BB
-        delta_gt_dual = bboxes_xyz_gt - tf.gather_nd(proposals_xyz, tf.stack([batch_idx, bboxes_assignment_dual], axis=-1))  # B * BB * 3
-        delta_predicted_dual = tf.gather_nd(proposals_output[..., 2:5], tf.stack([batch_idx, bboxes_assignment_dual], axis=-1))  # B * BB * 3)
-        center_loss_dual = tf.reduce_mean(tf.reduce_sum(tf.losses.huber_loss(labels=delta_gt_dual, predictions=delta_predicted_dual, reduction=tf.losses.Reduction.NONE), axis=-1))
+        bboxes_assignment_dual = tf.argmin(dist_mat, axis=1)
+        proposals_to_boxes_idx = tf.stack(
+            [tf.tile(tf.expand_dims(tf.range(tf.shape(bboxes_assignment_dual, out_type=tf.int64)[0]), -1),
+                     [1, tf.shape(bboxes_assignment_dual)[1]]),
+             bboxes_assignment_dual], 2)  # B * BB' * 2
 
-        # add up
-        center_loss += center_loss_dual
-        center_loss = tf.identity(center_loss, 'center_loss')
+        nearest_proposals_assigned2box = tf.gather_nd(proposals_xyz + center_scores_pred, proposals_to_boxes_idx)
+        center_loss_right = tf.reduce_mean(tf.reduce_sum(tf.losses.huber_loss(labels=bboxes_xyz,
+                                                                              predictions=nearest_proposals_assigned2box,
+                                                                              reduction=tf.losses.Reduction.NONE),
+                                                         axis=-1),
+                                           name='center_right_loss')
+        center_loss = tf.identity(center_loss_left + center_loss_right, name='center_loss')
 
-        # Heading loss
-        heading_cls_gt = tf.gather_nd(bboxes_heading_labels_gt, positive_gt_idxes)
-        heading_cls_score = tf.gather_nd(proposals_output[..., 5:5+config.NH], positive_idxes)
-        heading_cls_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=heading_cls_score, labels=heading_cls_gt), name='heading_cls_loss')
+        heading_cls_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+           logits=tf.gather_nd(heading_scores_pred, positive_pro_idx),
+           labels=tf.gather_nd(heading_labels, positive_gt_idx)), name='heading_cls_loss')
 
-        heading_cls_gt_onehot = tf.one_hot(heading_cls_gt,  depth=config.NH, on_value=1, off_value=0, axis=-1)  # Np * NH
-        heading_residual_gt = tf.gather_nd(bboxes_heading_residuals_gt, positive_gt_idxes)  # Np
-        heading_residual_predicted = tf.gather_nd(proposals_output[..., 5 + config.NH:5+2 * config.NH], positive_idxes) #  Np * NH
-        heading_residual_loss = tf.losses.huber_loss(labels=heading_residual_gt,
-                                                     predictions=tf.reduce_sum(heading_residual_predicted * tf.to_float(heading_cls_gt_onehot), axis=1),
+        heading_onehot_label = tf.one_hot(tf.gather_nd(heading_labels, positive_gt_idx),
+                                          depth=config.NH, on_value=1, off_value=0, axis=-1)
+        heading_residual_normalized_label = tf.gather_nd(heading_residuals, positive_gt_idx) / (np.pi / config.NH)
+        heading_residual_pred = tf.reduce_sum(tf.gather_nd(heading_residuals_normalized_pred, positive_pro_idx) *
+                          tf.cast(heading_onehot_label, tf.float32), axis=1)
+
+        heading_residual_loss = tf.losses.huber_loss(labels=heading_residual_normalized_label,
+                                                     predictions=heading_residual_pred,
                                                      reduction=tf.losses.Reduction.MEAN)
         heading_residual_loss = tf.identity(heading_residual_loss, name='heading_residual_loss')
-
-        # Size loss
-        size_cls_gt = tf.gather_nd(bboxes_size_labels_gt, positive_gt_idxes)
-        size_cls_score = tf.gather_nd(proposals_output[..., 5+2 * config.NH:5+2 * config.NH + config.NS], positive_idxes)
-        size_cls_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=size_cls_score, labels=size_cls_gt),
-                                       name='size_cls_loss')
-
-        size_cls_gt_onehot = tf.one_hot(size_cls_gt, depth=config.NS, on_value=1, off_value=0, axis=-1)  # Np * NS
-        size_cls_gt_onehot = tf.tile(tf.expand_dims(tf.to_float(size_cls_gt_onehot), -1), [1, 1, 3])  # Np * NS * 3
-        size_residual_gt = tf.gather_nd(bboxes_size_residuals_gt, positive_gt_idxes)  # Np * 3
-        size_residual_predicted = tf.reshape(tf.gather_nd(proposals_output[..., 5+2 * config.NH + config.NS:5+2 * config.NH + 4 * config.NS], positive_idxes), (-1, config.NS, 3))  # Np * NS * 3
+        # size loss
+        size_cls_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+               logits=tf.gather_nd(size_scores_pred, positive_pro_idx),
+               labels=tf.gather_nd(size_labels, positive_gt_idx)), name='size_cls_loss')
+    
+        size_cls_gt_onehot = tf.one_hot(tf.gather_nd(size_labels, positive_gt_idx),
+                                        depth=config.NS, on_value=1, off_value=0, axis=-1)
+        size_cls_gt_onehot = tf.tile(tf.expand_dims(tf.cast(size_cls_gt_onehot, dtype=tf.float32), -1),
+                                     [1, 1, 3])
+        size_residual_gt = tf.gather_nd(size_residuals, positive_gt_idx)  # Np * 3
+        size_residual_predicted = tf.reduce_sum(tf.reshape(tf.gather_nd(size_residuals_normalized_pred,
+                                                                        positive_pro_idx),
+                                                           [-1, config.NS, 3]) *
+                                                tf.cast(size_cls_gt_onehot, dtype=tf.float32), axis=1)
         size_residual_loss = tf.reduce_mean(tf.reduce_sum(tf.losses.huber_loss(labels=size_residual_gt,
-                                                                               predictions=tf.reduce_sum(size_residual_predicted * tf.to_float(size_cls_gt_onehot), axis=1),
-                                                                               reduction=tf.losses.Reduction.NONE), axis=-1),
-                                            name='size_residual_loss')
-
+                                                                               predictions=size_residual_predicted,
+                                                                               reduction=tf.losses.Reduction.NONE),
+                                                          axis=-1))
         box_loss = tf.identity(center_loss +
                                0.1 * heading_cls_loss + heading_residual_loss
                                + 0.1 * size_cls_loss + size_residual_loss, name='box_loss')
-
         # semantic loss
-        sem_cls_score = tf.gather_nd(proposals_output[..., -config.NC:], positive_idxes)
-        sem_cls_gt = tf.gather_nd(bboxes_labels_gt, positive_gt_idxes)  # Np
+        sem_cls_score = tf.gather_nd(sementic_classes_pred, positive_pro_idx)
+        sem_cls_gt = tf.gather_nd(semantic_labels, positive_gt_idx)
         sem_cls_loss = tf.reduce_mean(
-            tf.nn.sparse_softmax_cross_entropy_with_logits(logits=sem_cls_score, labels=sem_cls_gt),
-            name='sem_cls_loss')
+           tf.nn.sparse_softmax_cross_entropy_with_logits(logits=sem_cls_score, labels=sem_cls_gt, name='sem_cls_loss'))
+
         sem_correct = tf.cast(tf.nn.in_top_k(sem_cls_score, sem_cls_gt, 1), tf.float32, name='sem_correct')
         sem_accuracy = tf.reduce_mean(sem_correct, name='sem_accuracy')
 
-        # This will monitor training error & accuracy (in a moving average fashion). The value will be automatically
-        # 1. written to tensosrboard
-        # 2. written to stat.json
-        # 3. printed after each epoch
-        # summary.add_moving_summary(obj_accuracy, sem_accuracy)
-
-        # Use a regex to find parameters to apply weight decay.
-        # Here we apply a weight decay on all W (weight matrix) of all fc layers
-        # If you don't like regex, you can certainly define the cost in any other methods.
-        # no weight decay
         wd_cost = tf.multiply(1e-5,
                               regularize_cost('.*/W', tf.nn.l2_loss),
                               name='regularize_loss')
@@ -258,7 +281,8 @@ class Model(ModelDesc):
         total_cost = tf.identity(total_cost, name='total_cost')
         summary.add_moving_summary(total_cost,
                                    vote_reg_loss,
-                                   obj_cls_loss, box_loss, center_loss,
+                                   obj_cls_loss, box_loss,
+                                   center_loss, center_loss_left, center_loss_right,
                                    heading_cls_loss, heading_residual_loss,
                                    size_cls_loss, size_residual_loss,
                                    sem_cls_loss,
