@@ -147,7 +147,6 @@ class sunrgbd_object(object):
         return sunutils.SUNRGBD_Calibration(calib_filename)
 
     def get_label_objects(self, idx):
-        # assert (self.split == 'training')
         label_filename = os.path.join(self.label_dir, '%06d.txt' % (idx))
         return sunutils.read_sunrgbd_label(label_filename)
 
@@ -256,6 +255,7 @@ class MyDataFlow(RNGDataFlow):
 
     def __iter__(self):
         while True:
+            idx = None
             try:
                 idx = self.rng.choice(self.dataset.samples)
                 # idx = 10
@@ -270,6 +270,7 @@ class MyDataFlow(RNGDataFlow):
                 pc_image_coord, _ = calib.project_upright_depth_to_image(pc_upright_depth)
 
                 if not objects:
+                    print('There is no objects in {}'.format(idx))
                     continue
 
                 # if self.training:
@@ -296,6 +297,7 @@ class MyDataFlow(RNGDataFlow):
                 for obj_idx in range(len(objects)):
                     obj = objects[obj_idx]
                     if obj.classname not in self.type_whitelist:
+                        # Normal.
                         continue
 
                     # 2D BOX: Get pts rect backprojected
@@ -333,6 +335,7 @@ class MyDataFlow(RNGDataFlow):
 
                     # Reject object with too few points
                     if len(inds) < 5:
+                        print('data_points in box less than 5, dataSet {}'.format(idx))
                         continue
 
                     # VISUALIZE
@@ -347,9 +350,9 @@ class MyDataFlow(RNGDataFlow):
                     bboxes_pts_label.append(box3d_pts_3d)
                     semantic_labels.append(type2class[obj.classname])
                     heading_labels.append(angle_class)
-                    heading_residuals.append(angle_residual / (np.pi / config.NH))
+                    heading_residuals.append(angle_residual)
                     size_labels.append(size_class)
-                    size_residuals.append(size_residual / type_mean_size[obj.classname])
+                    size_residuals.append(size_residual)
 
                 if len(bboxes_xyz) > 0:
                     # if self.training:
@@ -363,9 +366,7 @@ class MyDataFlow(RNGDataFlow):
                     yield [pc_upright_camera[:, :3], np.array(bboxes_xyz), np.array(bboxes_lwh), np.array(bboxes_pts_label), np.array(semantic_labels),
                            np.array(heading_labels), np.array(heading_residuals), np.array(size_labels), np.array(size_residuals)]
             except Exception as ex:
-                print('*'*60)
-                print(ex)
-                print('#'*60)
+                print("can not get a data from {}".format(idx))
 
 
 def get_box3d_dim_statistics(idx_filename, type_whitelist=['bed', 'table', 'sofa', 'chair', 'toilet', 'desk', 'dresser',

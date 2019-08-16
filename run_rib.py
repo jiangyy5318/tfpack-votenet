@@ -108,17 +108,15 @@ if __name__ == '__main__':
         model=Model(),
         # The input source for training. FeedInput is slow, this is just for demo purpose.
         # In practice it's best to use QueueInput or others. See tutorials for details.
-        data=QueueInput(BatchData2Biggest(PrefetchData(train_set, min(multiprocessing.cpu_count() // 2, BATCH_SIZE),
-                                                       min(multiprocessing.cpu_count() // 2, BATCH_SIZE)),
-                                          BATCH_SIZE)),
+        data=QueueInput(BatchData2Biggest(PrefetchData(train_set, multiprocessing.cpu_count() // 2, multiprocessing.cpu_count() // 2), BATCH_SIZE)),
         # starting_epoch=60,
         callbacks=[
             ModelSaver(),  # save the model after every epoch
             ScheduledHyperParamSetter('learning_rate', lr_schedule),
             # compute mAP on val set
-            # PeriodicTrigger(Evaluator('/data/jiangyy/sun_rgbd', 'train', 1,
-            #                          idx_list=[int(e.strip()) for e in open('/data/jiangyy/sun_rgbd/train/val_data_idx.txt').readlines()])
-            #                , every_k_epochs=20, before_train=False),
+            PeriodicTrigger(Evaluator('/data/jiangyy/sun_rgbd', 'train', 1,
+                                     idx_list=[int(e.strip()) for e in open('/data/jiangyy/sun_rgbd/train/val_data_idx.txt').readlines()])
+                           , every_k_epochs=20, before_train=False),
             # MaxSaver('val_accuracy'),  # save the model with highest accuracy
         ],
         max_epoch=250,
