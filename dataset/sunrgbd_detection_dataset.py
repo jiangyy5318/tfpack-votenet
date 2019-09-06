@@ -212,7 +212,6 @@ class MyDataFlow(RNGDataFlow):
         ret_dict['vote_label_mask'] = point_votes_mask.astype(np.int64) #(N)
         ret_dict['scan_idx'] = np.array(idx).astype(np.int64) #()
         ret_dict['max_gt_bboxes'] = max_bboxes #(bbox,8)
-        print("hello world:", ret_dict['vote_label'].shape)
         box3d_centers = np.zeros((MAX_NUM_OBJ, 3))
         box3d_sizes = np.zeros((MAX_NUM_OBJ, 3))
         angle_classes = np.zeros((MAX_NUM_OBJ,))

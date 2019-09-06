@@ -46,7 +46,8 @@ def sample_and_group(npoint, radius, nsample, xyz, points, knn=False, use_xyz=Tr
     gather_point: output npoint 's data according to index and input data
     '''
     # aaa = farthest_point_sample(npoint, xyz)
-    new_xyz = gather_point(xyz, farthest_point_sample(npoint, xyz))  # (batch_size, npoint, 3)
+    inds = farthest_point_sample(npoint, xyz)
+    new_xyz = gather_point(xyz, )  # (batch_size, npoint, 3)
     # print('xys:', new_xyz.get_shape())
     # print('new_xyz in s g:', new_xyz.get_shape(), 'npoint:', npoint)
 
@@ -69,7 +70,7 @@ def sample_and_group(npoint, radius, nsample, xyz, points, knn=False, use_xyz=Tr
     else:
         new_points = grouped_xyz
 
-    return new_xyz, new_points, idx, grouped_xyz
+    return new_xyz, new_points, inds, grouped_xyz
 
 
 def sample_and_group_all(xyz, points, use_xyz=True):
