@@ -3,6 +3,7 @@ import tensorpack.utils
 import os, sys
 ROOT_DIR = os.path.dirname(__file__)
 sys.path.append(ROOT_DIR)
+import config
 import multiprocessing
 from evaluator import Evaluator
 import six
@@ -105,7 +106,18 @@ if __name__ == '__main__':
     test_idx_list = [int(e.strip()) for e in open('/data/jiangyy/sun_rgbd/train/val_data_idx.txt').readlines()][0:200]
     test_set = MyDataFlow('/data/jiangyy/sun_rgbd', 'train', idx_list=test_idx_list)
 
-    session_init = SaverRestore('./train_log/run/model-7500.data-00000-of-00001')
+    TRAIN_DATASET = MyDataFlow('train', num_points=config.POINT_NUM,
+        augment=True,
+        use_color=False, use_height=True,
+        use_v1=True)
+
+    VAL_DATASET = MyDataFlow('val', num_points=config.POINT_NUM,
+        augment=False,
+        use_color=False, use_height=True,
+        use_v1=True)
+
+
+    #session_init = SaverRestore('./train_log/run/model-7500.data-00000-of-00001')
 
     # lr_schedule = [(i, 5e-5) for i in range(260)]
     # get the config which contains everything necessary in a training
@@ -117,7 +129,7 @@ if __name__ == '__main__':
         data=QueueInput(BatchData2Biggest(PrefetchData(train_set, min(multiprocessing.cpu_count() // 2, BATCH_SIZE),
                                                        min(multiprocessing.cpu_count() // 2, BATCH_SIZE)),
                                           BATCH_SIZE)),
-        session_init=session_init,
+        # session_init=session_init,
         starting_epoch=100,
         callbacks=[
             ModelSaver(),  # save the model after every epoch
@@ -125,8 +137,8 @@ if __name__ == '__main__':
             # PeriodicTrigger(InferenceRunner(test_set, [ScalarStats('val_loss')]),
             #                 every_k_epochs=2, before_train=False),
             # compute mAP on val set
-            PeriodicTrigger(Evaluator('/data/jiangyy/sun_rgbd', 'train', 1, idx_list=test_idx_list),
-                            every_k_epochs=5, before_train=False),
+            # PeriodicTrigger(Evaluator('/data/jiangyy/sun_rgbd', 'train', 1, idx_list=test_idx_list),
+            #                 every_k_epochs=5, before_train=False),
             GPUUtilizationTracker()
             # MaxSaver('val_accuracy'),  # save the model with highest accuracy
         ],
