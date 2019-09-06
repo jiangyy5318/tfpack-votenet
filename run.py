@@ -101,12 +101,12 @@ if __name__ == '__main__':
     tensorpack.utils.logger.auto_set_dir(action='k')
 
     # this is the official train/val split
-    train_idx_list = [int(e.strip()) for e in open('/data/jiangyy/sun_rgbd/train/train_data_idx.txt').readlines()]
-    train_set = MyDataFlow('/data/jiangyy/sun_rgbd', 'train',idx_list=train_idx_list)
-    test_idx_list = [int(e.strip()) for e in open('/data/jiangyy/sun_rgbd/train/val_data_idx.txt').readlines()][0:200]
-    test_set = MyDataFlow('/data/jiangyy/sun_rgbd', 'train', idx_list=test_idx_list)
+    #train_idx_list = [int(e.strip()) for e in open('/data/jiangyy/sun_rgbd/train/train_data_idx.txt').readlines()]
+    #train_set = MyDataFlow('/data/jiangyy/sun_rgbd', 'train',idx_list=train_idx_list)
+    #test_idx_list = [int(e.strip()) for e in open('/data/jiangyy/sun_rgbd/train/val_data_idx.txt').readlines()][0:200]
+    #test_set = MyDataFlow('/data/jiangyy/sun_rgbd', 'train', idx_list=test_idx_list)
 
-    TRAIN_DATASET = MyDataFlow('train', num_points=config.POINT_NUM,
+    train_set = MyDataFlow('train', num_points=config.POINT_NUM,
         augment=True,
         use_color=False, use_height=True,
         use_v1=True)
