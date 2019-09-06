@@ -9,8 +9,9 @@ import six
 import numpy as np
 from tensorpack.train import launch_train_with_config
 from tensorpack.utils.gpu import get_num_gpu
-from model.model_v1_2 import Model
-from dataset.dataset_v2 import MyDataFlow
+from model.model_v1_3 import Model
+from dataset.sunrgbd_detection_dataset import MyDataFlow
+from tensorpack import get_model_loader
 
 BATCH_SIZE = 8
 
@@ -97,10 +98,15 @@ class BatchData2Biggest(BatchData):
 
 if __name__ == '__main__':
     tensorpack.utils.logger.auto_set_dir(action='k')
+
     # this is the official train/val split
-    train_set = MyDataFlow('/data/jiangyy/sun_rgbd', 'train',
-                           idx_list=[int(e.strip()) for e in open('/data/jiangyy/sun_rgbd/train/train_data_idx.txt').readlines()])
-    lr_schedule = [(0, 1e-3), (80, 1e-4), (120, 1e-5)]
+    train_idx_list = [int(e.strip()) for e in open('/data/jiangyy/sun_rgbd/train/train_data_idx.txt').readlines()]
+    train_set = MyDataFlow('/data/jiangyy/sun_rgbd', 'train',idx_list=train_idx_list)
+    test_idx_list = [int(e.strip()) for e in open('/data/jiangyy/sun_rgbd/train/val_data_idx.txt').readlines()][0:200]
+    test_set = MyDataFlow('/data/jiangyy/sun_rgbd', 'train', idx_list=test_idx_list)
+
+    session_init = SaverRestore('./train_log/run/model-7500.data-00000-of-00001')
+
     # lr_schedule = [(i, 5e-5) for i in range(260)]
     # get the config which contains everything necessary in a training
     config = AutoResumeTrainConfig(
@@ -111,18 +117,29 @@ if __name__ == '__main__':
         data=QueueInput(BatchData2Biggest(PrefetchData(train_set, min(multiprocessing.cpu_count() // 2, BATCH_SIZE),
                                                        min(multiprocessing.cpu_count() // 2, BATCH_SIZE)),
                                           BATCH_SIZE)),
-        # starting_epoch=60,
+        session_init=session_init,
+        starting_epoch=100,
         callbacks=[
             ModelSaver(),  # save the model after every epoch
-            ScheduledHyperParamSetter('learning_rate', lr_schedule),
+            ScheduledHyperParamSetter('learning_rate', [(1, 1e-2), (10, 1e-3), (80, 1e-4), (120, 1e-5)]),
+            # PeriodicTrigger(InferenceRunner(test_set, [ScalarStats('val_loss')]),
+            #                 every_k_epochs=2, before_train=False),
             # compute mAP on val set
-            # PeriodicTrigger(Evaluator('/data/jiangyy/sun_rgbd', 'train', 1,
-            #                          idx_list=[int(e.strip()) for e in open('/data/jiangyy/sun_rgbd/train/val_data_idx.txt').readlines()])
-            #                , every_k_epochs=20, before_train=False),
+            PeriodicTrigger(Evaluator('/data/jiangyy/sun_rgbd', 'train', 1, idx_list=test_idx_list),
+                            every_k_epochs=5, before_train=False),
+            GPUUtilizationTracker()
             # MaxSaver('val_accuracy'),  # save the model with highest accuracy
         ],
-        max_epoch=250,
+        steps_per_epoch=100,
+        max_epoch=1000,
     )
+
+    # pred_config = PredictConfig(
+    #     model=model,
+    #     session_init=sess_init,
+    #     input_names=['input'],
+    #     output_names=['output']
+    # )
 
     trainer = SyncMultiGPUTrainerParameterServer(max(get_num_gpu(), 1))
     if BATCH_SIZE == 1:

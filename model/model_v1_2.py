@@ -189,8 +189,6 @@ class Model(ModelDesc):
             class_scores_pred = tf.gather_nd(sementic_classes_pred, nms_idx, name='class_scores_pred')  # Nnms * C
             batch_idx = tf.identity(nms_idx[:, 0], name='batch_idx')  # Nnms, this is used to identify between batches
 
-            return
-
         dist_mat = tf.norm(tf.expand_dims(proposals_xyz, axis=[2]) - tf.expand_dims(bboxes_xyz_labels, axis=[1]), axis=-1)
         min_dist = tf.reduce_min(dist_mat, axis=-1)
         bboxes_assignment = tf.argmin(dist_mat, axis=-1)  # (B, N'), e:0~K
@@ -212,7 +210,7 @@ class Model(ModelDesc):
         neg_obj_cls_gt = tf.zeros([tf.shape(negative_pro_idx)[0]], dtype=tf.int32)
         pos_obj_cls_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=pos_obj_cls_score,labels=pos_obj_cls_gt))
         neg_obj_cls_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=neg_obj_cls_score,labels=neg_obj_cls_gt))
-        obj_cls_loss = tf.identity((pos_obj_cls_loss + neg_obj_cls_loss) / 2.0, name='obj_cls_loss')
+        obj_cls_loss = tf.identity(pos_obj_cls_loss * 0.8 + neg_obj_cls_loss * 0.2, name='obj_cls_loss')
         obj_correct = tf.concat([tf.cast(tf.nn.in_top_k(pos_obj_cls_score, pos_obj_cls_gt, 1), tf.float32),
                                  tf.cast(tf.nn.in_top_k(neg_obj_cls_score, neg_obj_cls_gt, 1), tf.float32)], axis=0,
                                 name='obj_correct')
@@ -268,12 +266,12 @@ class Model(ModelDesc):
         # size residual loss
         size_cls_gt_onehot = tf.one_hot(tf.gather_nd(size_cls_labels, positive_gt_idx),
                                         depth=config.NS, on_value=1, off_value=0, axis=-1)  # (P, NS)
-        size_cls_gt_onehot_tiled = tf.tile(tf.expand_dims(size_cls_gt_onehot, axis=-1), [1, 1, 3])
+        size_cls_gt_onehot_tiled = tf.tile(tf.cast(tf.expand_dims(size_cls_gt_onehot, axis=-1), dtype=tf.float32), [1, 1, 3])
         # size_cls_gt_onehot_tiled: (P,NS,3), [[...,[0,0,0],[1,1,1]]]
 
         size_residuals_normalized_pred = tf.reshape(tf.gather_nd(size_residuals_normalized_pred, positive_pro_idx),
                                                     [-1, config.NS, 3])
-        size_residuals_normalized_pred = tf.reduce_sum(size_residuals_normalized_pred * tf.cast(size_cls_gt_onehot_tiled, dtype=tf.float32), axis=1)
+        size_residuals_normalized_pred = tf.reduce_sum(size_residuals_normalized_pred * size_cls_gt_onehot_tiled, axis=1)
         mean_size_arr_expand = tf.expand_dims(tf.constant(class_mean_size, dtype=tf.float32), 0)  # (1, NS, 3)
         mean_size_label = tf.reduce_sum(size_cls_gt_onehot_tiled * mean_size_arr_expand, axis=[1])  # (P, 3)
         size_residual_label_normalized = tf.gather_nd(size_residual_labels, positive_gt_idx) / mean_size_label
@@ -299,7 +297,13 @@ class Model(ModelDesc):
                               name='regularize_loss')
 
         total_cost = vote_reg_loss + 0.5 * obj_cls_loss + 1. * box_loss + 0.1 * sem_cls_loss
-        total_cost = tf.identity(total_cost, name='total_loss')
+
+        total_cost = tf.add_n([total_cost, wd_cost], name='total_loss')
+
+        # if not get_current_tower_context().is_training:
+        #     val_cost = tf.add_n([total_cost, wd_cost], name='val_loss')
+
+        #total_cost = tf.identity(total_cost, name='total_loss')
         summary.add_moving_summary(total_cost,
                                    vote_reg_loss,
                                    obj_cls_loss, box_loss,

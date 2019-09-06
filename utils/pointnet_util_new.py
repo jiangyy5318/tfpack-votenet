@@ -20,7 +20,7 @@ import tensorflow as tf
 import numpy as np
 
 
-def sample_and_group(npoint, radius, nsample, xyz, points, knn=False, use_xyz=True):
+def sample_and_group(npoint, radius, nsample, xyz, points, knn=False, use_xyz=True, normalize_xyz=False):
     '''
     Input:
         npoint: int32
@@ -55,8 +55,11 @@ def sample_and_group(npoint, radius, nsample, xyz, points, knn=False, use_xyz=Tr
     else:
         # K‘ flexiable, but less than nsample, paper not refered
         idx, pts_cnt = query_ball_point(radius, nsample, xyz, new_xyz)
+    # 这里的idx就有点像gather_nd里面的idx
     grouped_xyz = group_point(xyz, idx)  # (batch_size, npoint, nsample, 3)
     grouped_xyz -= tf.tile(tf.expand_dims(new_xyz, 2), [1, 1, nsample, 1])  # translation normalization
+    if normalize_xyz:
+        grouped_xyz /= radius
     if points is not None:
         grouped_points = group_point(points, idx)  # (batch_size, npoint, nsample, channel)
         if use_xyz:
@@ -99,7 +102,7 @@ def sample_and_group_all(xyz, points, use_xyz=True):
 
 
 def pointnet_sa_module(xyz, points, npoint, radius, nsample, mlp, mlp2, group_all, is_training=False, bn_decay=None,
-                       scope="", bn=True, pooling='max', knn=False, use_xyz=True, use_nchw=False):
+                       scope="", bn=True, pooling='max', knn=False, use_xyz=True, use_nchw=False, normalize_xyz=False):
     ''' PointNet Set Abstraction (SA) Module
         Input:
             xyz: (batch_size, ndataset, 3) TF tensor
@@ -125,7 +128,8 @@ def pointnet_sa_module(xyz, points, npoint, radius, nsample, mlp, mlp2, group_al
             nsample = xyz.get_shape()[1].value
             new_xyz, new_points, idx, grouped_xyz = sample_and_group_all(xyz, points, use_xyz)
         else:
-            new_xyz, new_points, idx, grouped_xyz = sample_and_group(npoint, radius, nsample, xyz, points, knn, use_xyz)
+            new_xyz, new_points, idx, grouped_xyz = sample_and_group(npoint, radius, nsample, xyz, points,
+                                                                     knn, use_xyz, normalize_xyz)
 
         # Point Feature Embedding
         if use_nchw: new_points = tf.transpose(new_points, [0, 3, 1, 2])
@@ -222,10 +226,11 @@ def pointnet_fp_module(xyz1, xyz2, points1, points2, mlp, is_training=False, bn_
     '''
     with tf.variable_scope(scope) as sc:
         dist, idx = three_nn(xyz1, xyz2)
-        dist = tf.maximum(dist, 1e-10)
-        norm = tf.reduce_sum((1.0 / dist), axis=2, keepdims=True)
+        dist_recip = 1.0 / (dist + 1e-8)
+        # dist = tf.maximum(dist, 1e-10)
+        norm = tf.reduce_sum(dist_recip, axis=2, keepdims=True)
         norm = tf.tile(norm, [1, 1, 3])
-        weight = (1.0 / dist) / norm
+        weight = dist_recip / norm
         interpolated_points = three_interpolate(points2, idx, weight)
 
         if points1 is not None:

@@ -242,7 +242,6 @@ def dataset_viz(show_frustum=False):
                 input()
 
 
-
 class MyDataFlow(RNGDataFlow):
     def __init__(self, root, split, idx_list=None):
         self.dataset = sunrgbd_object(root, split, idx_list)
@@ -362,7 +361,7 @@ class MyDataFlow(RNGDataFlow):
                     #         pc_upright_camera[..., 2] = -pc_upright_camera[..., 2]
                     #     pc_upright_camera[:, :3] = (roty(rand_roty_angle) @ pc_upright_camera[:, :3].T).T
                     #     pc_upright_camera[:, :3] = pc_upright_camera[:, :3] * rand_scale
-
+                    print(idx)
                     yield [pc_upright_camera[:, :3], np.array(bboxes_xyz), np.array(bboxes_lwh), np.array(bboxes_pts_label), np.array(semantic_labels),
                            np.array(heading_labels), np.array(heading_residuals), np.array(size_labels), np.array(size_residuals)]
             except Exception as ex:
