@@ -58,7 +58,7 @@ class Model(ModelDesc):
         object_pred = tf.slice(proposals_output, [0, 0, 0], [-1, -1, 2])
         end_points['objectness_scores'] = object_pred
 
-        base_xyz = end_points['aggregated_vote_xyz']
+        base_xyz = end_points['proposals_xyz']
         center = base_xyz + tf.slice(proposals_output, [0, 0, 2], [-1, -1, 3])
         end_points['center'] = center
 
@@ -310,6 +310,7 @@ class Model(ModelDesc):
                                                                mlp2=[128, 128,5+2 * config.NH+4 * config.NS+config.NC],
                                                                group_all=False, scope='proposal',
                                                                use_xyz=True, normalize_xyz=True)
+        end_points['proposals_xyz'] = proposals_xyz
 
         end_points = self.parse_outputs_to_tensor(proposals_output, end_points)
 
