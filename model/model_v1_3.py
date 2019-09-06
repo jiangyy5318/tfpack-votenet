@@ -47,7 +47,7 @@ class Model(ModelDesc):
                 tf.placeholder(tf.float32, (None, MAX_NUM_OBJ, 3), 'size_residual_label'),
                 tf.placeholder(tf.int32, (None, MAX_NUM_OBJ), 'sem_cls_label'),
                 tf.placeholder(tf.int32, (None, MAX_NUM_OBJ), 'box_label_mask'),
-                tf.placeholder(tf.int32, (None, config.POINT_NUM, 9), 'vote_label'),
+                tf.placeholder(tf.float32, (None, config.POINT_NUM, 9), 'vote_label'),
                 tf.placeholder(tf.int32, (None, config.POINT_NUM, 3), 'vote_label_mask'),
                 tf.placeholder(tf.int32, (None, ), 'scan_idx'),
                 tf.placeholder(tf.int32, (None, MAX_NUM_OBJ, 3), 'max_gt_bboxes'),

@@ -2,14 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="e4520488-0a30-4d09-bfad-091cec1444ff" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/config.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/model/model_v1_3.py" beforeDir="false" afterPath="$PROJECT_DIR$/model/model_v1_3.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/model/test.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/model/version.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/run.py" beforeDir="false" afterPath="$PROJECT_DIR$/run.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test.py" beforeDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -51,7 +44,7 @@
         <counts>
           <entry key="dummy" value="59" />
           <entry key="gitignore" value="16" />
-          <entry key="py" value="16947" />
+          <entry key="py" value="16958" />
           <entry key="sh" value="111" />
           <entry key="txt" value="292" />
         </counts>
@@ -60,7 +53,7 @@
         <counts>
           <entry key="Bash" value="111" />
           <entry key="PLAIN_TEXT" value="367" />
-          <entry key="Python" value="16947" />
+          <entry key="Python" value="16958" />
         </counts>
       </usages-collector>
     </session>
@@ -79,10 +72,10 @@
       <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/model/model_v1_3.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-281">
-              <caret line="446" lean-forward="true" selection-start-line="446" selection-end-line="446" />
+            <state relative-caret-position="122">
+              <caret line="268" column="98" selection-start-line="268" selection-start-column="83" selection-end-line="268" selection-end-column="98" />
               <folding>
-                <marker date="1567774969410" expanded="true" signature="9087:14826" ph="..." />
+                <marker date="1567775268454" expanded="true" signature="9083:14822" ph="..." />
               </folding>
             </state>
           </provider>
@@ -108,9 +101,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>delta_gt_dual</find>
-      <find>is_training</find>
-      <find>BATCH_SIZE</find>
       <find>heading_residuals</find>
       <find>type2class</find>
       <find>class_mean_size</find>
@@ -138,6 +128,9 @@
       <find>center_pred</find>
       <find>batch_size</find>
       <find>tf.shape</find>
+      <find>seed_gt_votes_mask</find>
+      <find>box_label_mask</find>
+      <find>vote_label_mask</find>
     </findStrings>
     <replaceStrings>
       <replace>bboxes_xyz</replace>
@@ -757,10 +750,10 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/model/model_v1_3.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-281">
-          <caret line="446" lean-forward="true" selection-start-line="446" selection-end-line="446" />
+        <state relative-caret-position="122">
+          <caret line="268" column="98" selection-start-line="268" selection-start-column="83" selection-end-line="268" selection-end-column="98" />
           <folding>
-            <marker date="1567774969410" expanded="true" signature="9087:14826" ph="..." />
+            <marker date="1567775268454" expanded="true" signature="9083:14822" ph="..." />
           </folding>
         </state>
       </provider>
