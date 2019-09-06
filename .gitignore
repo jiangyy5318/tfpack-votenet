@@ -1,4 +1,6 @@
 train_log
 sunrgbd
+nohup.out
 __pycache__
 *.log
+*.sh

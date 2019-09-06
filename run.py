@@ -14,7 +14,7 @@ from model.model_v1_3 import Model
 from dataset.sunrgbd_detection_dataset import MyDataFlow
 from tensorpack import get_model_loader
 
-BATCH_SIZE = 8
+BATCH_SIZE = config.BATCH_SIZE
 
 
 def pad_along_axis(array, target_length, axis=0):

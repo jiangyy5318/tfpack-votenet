@@ -80,20 +80,21 @@ class Model(ModelDesc):
         sem_cls_scores = tf.slice(proposals_output, [0, 0, 5 + config.NH * 2 + config.NS * 4], [-1, -1, -1])
         end_points['sem_cls_scores'] = sem_cls_scores
 
-        #return object_pred, center, heading_scores, heading_residuals,
         return end_points
 
     @staticmethod
     def hough_voting_mlp(seed_xyz, seed_points):
         net = tf.expand_dims(seed_points, axis=[2])
-        batch_size, num_seed, _ = seed_xyz.get_shape()
-        mlp_layers = [256, 256, (256 + 3) * vote_factor]
+        batch_size = tf.shape(seed_xyz)[0]
+        num_seed = tf.shape(seed_xyz)[1]
         vote_num = num_seed * vote_factor
+        mlp_layers = [256, 256, (256 + 3) * vote_factor]
+
         for idx, num_out_channel in enumerate(mlp_layers):
             is_last_layer = (idx == (len(mlp_layers) - 1))
             net = Conv2D('voting_mlp_%d' % idx, net, num_out_channel, [1, 1], padding='VALID', stride=[1, 1],
                          activation=None if is_last_layer else BNReLU)
-        net = tf.reshape(net, [-1, 1024, vote_factor, 3+256])
+        net = tf.reshape(net, [batch_size, num_seed, vote_factor, 3+256])
         offset, residual_features = tf.slice(net, (0,0,0,0), (-1,-1,-1,3)), tf.slice(net, (0,0,0,3), (-1,-1,-1,-1))
         vote_xyz = tf.expand_dims(seed_xyz, axis=2) + offset
         vote_xyz = tf.reshape(vote_xyz, [batch_size, vote_num, 3])
@@ -113,7 +114,9 @@ class Model(ModelDesc):
         vote_label_mask: (B,N)
         """
 
-        batch_size, num_seed, _ = seed_xyz.get_shape()
+        batch_size = tf.shape(seed_xyz)[0]
+        num_seed = tf.shape(seed_xyz)[1]
+        # vote_num = num_seed * vote_factor
         # tf 1.13
         seed_gt_votes_mask = tf.cast(tf.batch_gather(vote_label_mask, seed_inds), dtype=tf.float32)
 
@@ -135,7 +138,7 @@ class Model(ModelDesc):
 
     @staticmethod
     def compute_objectness_loss(proposals_xyz, center_label, end_points):
-        batch_size, K, _ = proposals_xyz.get_shape()
+
         dist_mat = tf.reduce_sum(tf.square(tf.expand_dims(proposals_xyz, axis=[2]) -
                                            tf.expand_dims(center_label, axis=[1])),
                                  axis=-1)
@@ -302,11 +305,11 @@ class Model(ModelDesc):
         # Proposal Module layers
         # Farthest point sampling on seeds
         proposals_xyz, proposals_output, _ = pointnet_sa_module(vote_xyz, vote_features,
-                                                                       npoint=config.PROPOSAL_NUM,
-                                                                       radius=0.3, nsample=64, mlp=[128, 128, 128],
-                                                                       mlp2=[128, 128,5+2 * config.NH+4 * config.NS+config.NC],
-                                                                       group_all=False, scope='proposal',
-                                                                       use_xyz=True, normalize_xyz=True)
+                                                               npoint=config.PROPOSAL_NUM,
+                                                               radius=0.3, nsample=64, mlp=[128, 128, 128],
+                                                               mlp2=[128, 128,5+2 * config.NH+4 * config.NS+config.NC],
+                                                               group_all=False, scope='proposal',
+                                                               use_xyz=True, normalize_xyz=True)
 
         end_points = self.parse_outputs_to_tensor(proposals_output, end_points)
 
@@ -441,7 +444,6 @@ class Model(ModelDesc):
         box_loss = tf.identity(loss_points['center_loss'] + 0.1 * loss_points['heading_cls_loss'] +
                                loss_points['heading_residual_loss']+ 0.1 * loss_points['size_cls_loss'] +
                                loss_points['size_residual_loss'], name='box_loss')
-
 
         wd_cost = tf.multiply(1e-5,
                               regularize_cost('.*/W', tf.nn.l2_loss),
