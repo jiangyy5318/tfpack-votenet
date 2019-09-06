@@ -1,6 +1,6 @@
 # coding: utf-8
 # Copyright (c) Facebook, Inc. and its affiliates.
-# 
+#
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
@@ -47,7 +47,7 @@ class MyDataFlow(RNGDataFlow):
         augment=False, scan_idx_list=None):
 
         assert(num_points<=50000)
-        self.use_v1 = use_v1 
+        self.use_v1 = use_v1
         if use_v1:
             self.data_path = os.path.join(ROOT_DIR,
                 'sunrgbd/sunrgbd_pc_bbox_votes_50k_v1_%s'%(split_set))
@@ -64,7 +64,7 @@ class MyDataFlow(RNGDataFlow):
         self.augment = augment
         self.use_color = use_color
         self.use_height = use_height
-       
+
     def __len__(self):
         return len(self.scan_names)
 
@@ -168,7 +168,7 @@ class MyDataFlow(RNGDataFlow):
             box3d_center = bbox[0:3]
             angle_class, angle_residual = DC.angle2class(bbox[6])
             # NOTE: The mean size stored in size2class is of full length of box edges,
-            # while in sunrgbd_data.py data dumping we dumped *half* length l,w,h.. so have to time it by 2 here 
+            # while in sunrgbd_data.py data dumping we dumped *half* length l,w,h.. so have to time it by 2 here
             box3d_size = bbox[3:6]*2
             size_class, size_residual = DC.size2class(box3d_size, DC.class2type[semantic_class])
             box3d_centers[i,:] = box3d_center
@@ -178,7 +178,7 @@ class MyDataFlow(RNGDataFlow):
             size_residuals[i] = size_residual
             box3d_sizes[i,:] = box3d_size
 
-        target_bboxes_mask = label_mask 
+        target_bboxes_mask = label_mask
         target_bboxes = np.zeros((MAX_NUM_OBJ, 6))
         for i in range(bboxes.shape[0]):
             bbox = bboxes[i]
@@ -212,7 +212,7 @@ class MyDataFlow(RNGDataFlow):
         ret_dict['vote_label_mask'] = point_votes_mask.astype(np.int64) #(N)
         ret_dict['scan_idx'] = np.array(idx).astype(np.int64) #()
         ret_dict['max_gt_bboxes'] = max_bboxes #(bbox,8)
-
+        print("hello world:", ret_dict['vote_label'].shape)
         box3d_centers = np.zeros((MAX_NUM_OBJ, 3))
         box3d_sizes = np.zeros((MAX_NUM_OBJ, 3))
         angle_classes = np.zeros((MAX_NUM_OBJ,))
