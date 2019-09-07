@@ -451,13 +451,14 @@ class Model(ModelDesc):
                                loss_points['heading_residual_loss']+ 0.1 * loss_points['size_cls_loss'] +
                                loss_points['size_residual_loss'], name='box_loss')
 
-        wd_cost = tf.multiply(1e-5,
-                              regularize_cost('.*/W', tf.nn.l2_loss),
-                              name='regularize_loss')
+        # wd_cost = tf.multiply(1e-5,
+        #                       regularize_cost('.*/W', tf.nn.l2_loss),
+        #                       name='regularize_loss')
 
         total_cost = vote_loss + 0.5 * objectness_loss + 1. * box_loss + 0.1 * loss_points['sem_cls_loss']
 
-        total_cost = tf.add_n([total_cost, wd_cost], name='total_loss')
+        total_cost = tf.identity(total_cost, 'total_loss')
+        # total_cost = tf.add_n([total_cost, wd_cost], name='total_loss')
 
         summary.add_moving_summary(total_cost,
                                    vote_loss,
@@ -467,7 +468,7 @@ class Model(ModelDesc):
                                    loss_points['heading_cls_loss'], loss_points['heading_residual_loss'],
                                    loss_points['size_cls_loss'], loss_points['size_residual_loss'],
                                    loss_points['sem_cls_loss'],
-                                   wd_cost,
+                                   # wd_cost,
                                    decay=0)
         # monitor histogram of all weight (of conv and fc layers) in tensorboard
         summary.add_param_summary(('.*/W', ['histogram', 'rms']))
