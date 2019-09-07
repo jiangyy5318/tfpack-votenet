@@ -134,6 +134,7 @@ class Model(ModelDesc):
         vote_dist = tf.reduce_min(dist2, axis=1)
         vote_dist = tf.reshape(vote_dist, [batch_size, num_seed])
         vote_loss = tf.reduce_sum(vote_dist * seed_gt_votes_mask) / tf.reduce_sum(seed_gt_votes_mask + 1e-6)
+        vote_loss = tf.identity(vote_loss, 'vote_loss')
         return vote_loss
 
     @staticmethod
@@ -159,6 +160,7 @@ class Model(ModelDesc):
                                                                          labels=tf.cast(objectness_label,tf.int32))
         objectness_loss = tf.reduce_sum(objectness_mask * objectness_weighted * objectness_loss) / \
                           tf.reduce_sum(objectness_mask + 1e-6)
+        objectness_loss = tf.identity(objectness_loss, name='objectness_loss')
         return objectness_loss, objectness_label, objectness_mask, object_assignment
 
     @staticmethod
@@ -217,7 +219,6 @@ class Model(ModelDesc):
             logits=end_points['size_scores'],
             labels=size_class_label)
         size_cls_loss = tf.reduce_sum(size_cls_loss * objectness_label) / tf.reduce_sum(objectness_label + 1e-6)
-        size_cls_loss = tf.identity(size_cls_loss, 'size_cls_loss')
 
         # size residual loss
         # size_class_label (B,bbox) value = [0,NS)
@@ -241,6 +242,7 @@ class Model(ModelDesc):
         size_residual_loss = tf.reduce_sum(size_residual_loss * objectness_label) / tf.reduce_sum(
             objectness_label + 1e-6)
         size_cls_loss = tf.identity(size_cls_loss, name='size_cls_loss')
+        size_residual_loss = tf.identity(size_residual_loss, name='size_residual_loss')
 
         loss_points['size_cls_loss'] = size_cls_loss
         loss_points['size_residual_loss'] = size_residual_loss
@@ -249,8 +251,7 @@ class Model(ModelDesc):
         sem_cls_label = tf.batch_gather(sem_cls_label, object_assignment)  #
         sem_cls_loss = tf.reduce_mean(
             tf.nn.sparse_softmax_cross_entropy_with_logits(logits=end_points['sem_cls_scores'],
-                                                           labels=sem_cls_label,
-                                                           name='sem_cls_loss'))
+                                                           labels=sem_cls_label))
         sem_cls_loss = tf.reduce_sum(sem_cls_loss * objectness_label) / tf.reduce_sum(objectness_label + 1e-6)
         sem_cls_loss = tf.identity(sem_cls_loss, name='sem_cls_loss')
 

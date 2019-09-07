@@ -2,9 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="e4520488-0a30-4d09-bfad-091cec1444ff" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/model/model_v1_3.py" beforeDir="false" afterPath="$PROJECT_DIR$/model/model_v1_3.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/run.py" beforeDir="false" afterPath="$PROJECT_DIR$/run.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -46,7 +44,7 @@
         <counts>
           <entry key="dummy" value="59" />
           <entry key="gitignore" value="16" />
-          <entry key="py" value="17047" />
+          <entry key="py" value="17121" />
           <entry key="sh" value="111" />
           <entry key="txt" value="292" />
         </counts>
@@ -55,17 +53,17 @@
         <counts>
           <entry key="Bash" value="111" />
           <entry key="PLAIN_TEXT" value="367" />
-          <entry key="Python" value="17047" />
+          <entry key="Python" value="17121" />
         </counts>
       </usages-collector>
     </session>
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/run.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="185">
+            <state relative-caret-position="614">
               <caret line="137" column="36" lean-forward="true" selection-start-line="137" selection-start-column="36" selection-end-line="137" selection-end-column="36" />
               <folding>
                 <element signature="e#491#542#0" />
@@ -74,11 +72,11 @@
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="false">
+      <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/model/model_v1_3.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="293">
-              <caret line="474" column="6" selection-start-line="474" selection-start-column="6" selection-end-line="474" selection-end-column="6" />
+            <state relative-caret-position="461">
+              <caret line="470" column="57" lean-forward="true" selection-start-line="470" selection-start-column="57" selection-end-line="470" selection-end-column="57" />
             </state>
           </provider>
         </entry>
@@ -115,8 +113,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>get_tqdm</find>
-      <find>tqdm</find>
       <find>BatchData2Biggest</find>
       <find>obj_cls_loss</find>
       <find>MultiProcessPrefetchData</find>
@@ -145,6 +141,8 @@
       <find>argmin</find>
       <find>points</find>
       <find>vote_label</find>
+      <find>heading_cls_loss</find>
+      <find>vote_loss</find>
     </findStrings>
     <replaceStrings>
       <replace>bboxes_xyz</replace>
@@ -759,13 +757,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/utils/pointnet_util_new.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-6">
-          <caret line="214" lean-forward="true" selection-start-line="214" selection-end-line="214" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/dataset/sunrgbd_detection_dataset.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="144">
@@ -776,20 +767,27 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/model/model_v1_3.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="293">
-          <caret line="474" column="6" selection-start-line="474" selection-start-column="6" selection-end-line="474" selection-end-column="6" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/run.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="185">
+        <state relative-caret-position="614">
           <caret line="137" column="36" lean-forward="true" selection-start-line="137" selection-start-column="36" selection-end-line="137" selection-end-column="36" />
           <folding>
             <element signature="e#491#542#0" />
           </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/utils/pointnet_util_new.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-6">
+          <caret line="214" lean-forward="true" selection-start-line="214" selection-end-line="214" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/model/model_v1_3.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="461">
+          <caret line="470" column="57" lean-forward="true" selection-start-line="470" selection-start-column="57" selection-end-line="470" selection-end-column="57" />
         </state>
       </provider>
     </entry>
