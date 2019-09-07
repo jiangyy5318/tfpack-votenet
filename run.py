@@ -110,12 +110,13 @@ if __name__ == '__main__':
         augment=True,
         use_color=False, use_height=True,
         use_v1=True)
-
+    print(len(train_set))
+    """
     VAL_DATASET = MyDataFlow('val', num_points=config.POINT_NUM,
         augment=False,
         use_color=False, use_height=True,
         use_v1=True)
-
+    """
 
     #session_init = SaverRestore('./train_log/run/model-7500.data-00000-of-00001')
 

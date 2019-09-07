@@ -47,7 +47,7 @@ def sample_and_group(npoint, radius, nsample, xyz, points, knn=False, use_xyz=Tr
     '''
     # aaa = farthest_point_sample(npoint, xyz)
     inds = farthest_point_sample(npoint, xyz)
-    new_xyz = gather_point(xyz, )  # (batch_size, npoint, 3)
+    new_xyz = gather_point(xyz, inds)  # (batch_size, npoint, 3)
     # print('xys:', new_xyz.get_shape())
     # print('new_xyz in s g:', new_xyz.get_shape(), 'npoint:', npoint)
 
@@ -230,7 +230,6 @@ def pointnet_fp_module(xyz1, xyz2, points1, points2, mlp, is_training=False, bn_
         dist_recip = 1.0 / (dist + 1e-8)
         # dist = tf.maximum(dist, 1e-10)
         norm = tf.reduce_sum(dist_recip, axis=2, keepdims=True)
-        norm = tf.tile(norm, [1, 1, 3])
         weight = dist_recip / norm
         interpolated_points = three_interpolate(points2, idx, weight)
 

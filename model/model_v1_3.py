@@ -39,18 +39,18 @@ class Model(ModelDesc):
         ret_dict['scan_idx'] = np.array(idx).astype(np.int64) #()
         ret_dict['max_gt_bboxes'] = max_bboxes #(bbox,8)
         """
-        return [tf.placeholder(tf.float32, [None, config.POINT_NUM , 3], 'point_clouds'),
+        return [tf.placeholder(tf.float32, [None, config.POINT_NUM , config.POINT_DIM], 'point_clouds'),
                 tf.placeholder(tf.float32, [None, MAX_NUM_OBJ, 3], 'center_label'),
                 tf.placeholder(tf.int32, [None, MAX_NUM_OBJ], 'heading_class_label'),
                 tf.placeholder(tf.float32, [None, MAX_NUM_OBJ], 'heading_residual_label'),
                 tf.placeholder(tf.int32, (None, MAX_NUM_OBJ), 'size_class_label'),
                 tf.placeholder(tf.float32, (None, MAX_NUM_OBJ, 3), 'size_residual_label'),
                 tf.placeholder(tf.int32, (None, MAX_NUM_OBJ), 'sem_cls_label'),
-                tf.placeholder(tf.int32, (None, MAX_NUM_OBJ), 'box_label_mask'),
+                tf.placeholder(tf.float32, (None, MAX_NUM_OBJ), 'box_label_mask'),
                 tf.placeholder(tf.float32, (None, config.POINT_NUM, 9), 'vote_label'),
-                tf.placeholder(tf.int32, (None, config.POINT_NUM, 3), 'vote_label_mask'),
+                tf.placeholder(tf.int32, (None, config.POINT_NUM), 'vote_label_mask'),
                 tf.placeholder(tf.int32, (None, ), 'scan_idx'),
-                tf.placeholder(tf.int32, (None, MAX_NUM_OBJ, 3), 'max_gt_bboxes'),
+                tf.placeholder(tf.int32, (None, MAX_NUM_OBJ, 8), 'max_gt_bboxes'),
                 ]
 
     @staticmethod
@@ -143,7 +143,7 @@ class Model(ModelDesc):
                                            tf.expand_dims(center_label, axis=[1])),
                                  axis=-1)
         dist1 = tf.reduce_min(dist_mat, axis=2)
-        object_assignment = tf.argmin(dist_mat, axis=2)
+        object_assignment = tf.argmin(dist_mat, axis=2, output_type=tf.int32)
         euclid_dist1 = tf.sqrt(dist1 + 1e-6)
         objectness_label = tf.where(euclid_dist1 < NEAR_THRESHOLD,
                                     tf.ones_like(euclid_dist1),
@@ -156,7 +156,7 @@ class Model(ModelDesc):
                                        tf.ones_like(euclid_dist1) * 0.2)
 
         objectness_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=end_points['objectness_scores'],
-                                                                         labels=objectness_label)
+                                                                         labels=tf.cast(objectness_label,tf.int32))
         objectness_loss = tf.reduce_sum(objectness_mask * objectness_weighted * objectness_loss) / \
                           tf.reduce_sum(objectness_mask + 1e-6)
         return objectness_loss, objectness_label, objectness_mask, object_assignment
@@ -195,10 +195,12 @@ class Model(ModelDesc):
         # residual loss
         heading_residual_label = tf.batch_gather(heading_residual_label, object_assignment)
         heading_residual_normalized_label = heading_residual_label / (np.pi / config.NH)
-        heading_label_one_hot = tf.one_hot(heading_class_label, depth=config.NH, on_value=1, off_value=0, axis=-1)
+        heading_label_one_hot = tf.cast(tf.one_hot(heading_class_label,
+                                                   depth=config.NH, on_value=1, off_value=0, axis=-1),
+                                        tf.float32)
         # heading_label_one_hot: (B,bbox,NH), dim 2 is one_hot vector
         heading_residual_normalized_pred = tf.reduce_sum(heading_label_one_hot *
-                                                         end_points['size_residuals_normalized'], axis=-1)
+                                                         end_points['heading_residuals_normalized'], axis=-1)
         heading_residual_loss = tf.losses.huber_loss(labels=heading_residual_normalized_label,
                                                      predictions=heading_residual_normalized_pred,
                                                      reduction=tf.losses.Reduction.NONE)
@@ -220,7 +222,9 @@ class Model(ModelDesc):
         # size residual loss
         # size_class_label (B,bbox) value = [0,NS)
         # size_residual_label (B,bbox,NH)
-        size_label_one_hot = tf.one_hot(size_class_label, depth=config.NS, on_value=1, off_value=0, axis=-1)
+        size_label_one_hot = tf.cast(tf.one_hot(size_class_label,
+                                                depth=config.NS, on_value=1, off_value=0, axis=-1),
+                                     tf.float32)
         size_label_one_hot_tiled = tf.tile(tf.expand_dims(size_label_one_hot, -1), [1, 1, 1, 3])  #
         predicted_size_residual_normalized = tf.reduce_sum(
             size_label_one_hot_tiled * end_points['size_residuals_normalized'], axis=2)
@@ -266,10 +270,11 @@ class Model(ModelDesc):
     #                 size_cls_labels, size_residual_labels):
     # def build_graph(self, x, bboxes_xyz, bboxes_lwh, semantic_labels, heading_labels, heading_residuals, size_labels, size_residuals):
     def build_graph(self, x, center_label, heading_class_label, heading_residual_label, size_class_label,
-                    size_residual_label,sem_cls_label, box_label_mask, vote_label, vote_label_mask, scan_idx, max_gt_bboxes):
+                    size_residual_label,sem_cls_label, box_label_mask, vote_label, vote_label_mask,
+                    scan_idx, max_gt_bboxes):
 
-        l0_xyz = x
-        l0_points = None if x.shape[2] <=3 else x[:,:,3:]
+        l0_xyz = x[:,:,:3]
+        l0_points = None if x.shape[-1] <=3 else x[:,:,3:]
 
         end_points = {}
 
