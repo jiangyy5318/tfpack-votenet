@@ -141,7 +141,7 @@ if __name__ == '__main__':
             GPUUtilizationTracker()
             # MaxSaver('val_accuracy'),  # save the model with highest accuracy
         ],
-        steps_per_epoch=100,
+        steps_per_epoch=len(train_set) // BATCH_SIZE,
         max_epoch=1000,
     )
 
