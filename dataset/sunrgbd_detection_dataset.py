@@ -48,6 +48,7 @@ class MyDataFlow(RNGDataFlow):
 
         assert(num_points<=50000)
         self.use_v1 = use_v1
+        self.split_set = split_set
         if use_v1:
             self.data_path = os.path.join(ROOT_DIR,
                 'sunrgbd/sunrgbd_pc_bbox_votes_50k_v1_%s'%(split_set))
@@ -222,19 +223,35 @@ class MyDataFlow(RNGDataFlow):
         return ret_dict
 
     def __iter__(self):
-        while True:
-            idx = None
-            try:
-                idx = self.rng.choice(self.__len__())
-                ret_dict = self.__getitem__(idx)
-                key_list = ['point_clouds', 'center_label', 'heading_class_label', 'heading_residual_label',
-                            'size_class_label', 'size_residual_label', 'sem_cls_label', 'box_label_mask',
-                            'vote_label', 'vote_label_mask', 'scan_idx', 'max_gt_bboxes']
-                #if np.sum(ret_dict['sem_cls_label']) > 0:
-                yield [ret_dict[key] for key in key_list]
+        if self.split_set == 'train':
+            while True:
+                idx = None
+                try:
+                    idx = self.rng.choice(self.__len__())
+                    ret_dict = self.__getitem__(idx)
+                    key_list = ['point_clouds', 'center_label', 'heading_class_label', 'heading_residual_label',
+                                'size_class_label', 'size_residual_label', 'sem_cls_label', 'box_label_mask',
+                                'vote_label', 'vote_label_mask', 'scan_idx', 'max_gt_bboxes']
+                    #if np.sum(ret_dict['sem_cls_label']) > 0:
+                    yield [ret_dict[key] for key in key_list]
 
-            except Exception as ex:
-                print("can not get a data from {}".format(idx))
+                except Exception as ex:
+                    print("can not get a data from {}".format(idx))
+        else:
+            for idx in range(self.__len__()):
+                idx = None
+                try:
+                    idx = self.rng.choice(self.__len__())
+                    ret_dict = self.__getitem__(idx)
+                    key_list = ['point_clouds', 'center_label', 'heading_class_label', 'heading_residual_label',
+                                'size_class_label', 'size_residual_label', 'sem_cls_label', 'box_label_mask',
+                                'vote_label', 'vote_label_mask', 'scan_idx', 'max_gt_bboxes']
+                    # if np.sum(ret_dict['sem_cls_label']) > 0:
+                    yield [ret_dict[key] for key in key_list]
+
+                except Exception as ex:
+                    print("can not get a data from {}".format(idx))
+
 
 def viz_votes(pc, point_votes, point_votes_mask):
     """ Visualize point votes and point votes mask labels

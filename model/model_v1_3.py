@@ -75,8 +75,8 @@ class Model(ModelDesc):
 
         end_points['size_scores'] = size_scores
         end_points['size_residuals_normalized'] = size_residuals_normalized
-        # end_points['size_residuals']
-        # end_points['size_residuals'] = None
+        end_points['size_residuals'] = size_residuals_normalized * tf.expand_dims(tf.expand_dims(class_mean_size, 0), 0)
+
         sem_cls_scores = tf.slice(proposals_output, [0, 0, 5 + config.NH * 2 + config.NS * 4], [-1, -1, -1])
         end_points['sem_cls_scores'] = sem_cls_scores
 
@@ -258,13 +258,70 @@ class Model(ModelDesc):
         loss_points['sem_cls_loss'] = sem_cls_loss
 
         return loss_points
-        # wd_cost = tf.multiply(1e-5,
-        #                       regularize_cost('.*/W', tf.nn.l2_loss),
-        #                       name='regularize_loss')
+    @staticmethod
+    def calc_inference(end_points):
+        pred_center = tf.identity(end_points['center'], 'pred_center')  # B,num_proposal,3 ; base_xyz + proposal
+        pred_heading_class = tf.argmax(end_points['heading_scores'], -1)  # B,num_proposal
+        pred_heading_class_onehot = tf.one_hot(pred_heading_class, depth=config.NH, axis=-1, dtype=tf.float32)
+        pred_heading_residual = tf.reduce_sum(pred_heading_class_onehot * end_points['heading_residuals'], axis=2, name='pred_heading_residual')
 
-        # total_cost = vote_loss + 0.5 * objectness_loss + 1. * box_loss + 0.1 * sem_cls_loss
+        pred_size_class = tf.argmax(end_points['size_scores'], -1)  # B,num_proposal
+        pred_size_class_onehot = tf.one_hot(pred_size_class, depth=config.NS, axis=-1, dtype=tf.float32)
+        pred_size_residual = tf.reduce_sum(tf.expand_dims(pred_size_class_onehot, -1) * end_points['size_residuals'],
+                                           axis=2, name='pred_size_residual')
+        pred_sem_cls = tf.argmax(end_points['sem_cls_scores'], -1, name='pred_sem_cls')  # B,num_proposal
+        sem_cls_probs = tf.nn.softmax(end_points['sem_cls_scores'], axis=-1, name='sem_cls_probs')  # B,num_proposal,10
 
-        # total_cost = tf.add_n([total_cost, wd_cost], name='total_loss')
+    @staticmethod
+    def calc_inference_v1(end_points):
+        nms_iou = tf.get_variable('nms_iou', shape=[], initializer=tf.constant_initializer(0.25), trainable=False)
+        if not get_current_tower_context().is_training:
+
+            def get_3d_bbox(box_size, heading_angle, center):
+                batch_size = tf.shape(heading_angle)[0]
+                c = tf.cos(heading_angle)
+                s = tf.sin(heading_angle)
+                zeros = tf.zeros_like(c)
+                ones = tf.ones_like(c)
+                rotation = tf.reshape(tf.stack([c, zeros, s, zeros, ones, zeros, -s, zeros, c], -1),
+                                      tf.stack([batch_size, -1, 3, 3]))
+                l, w, h = box_size[..., 0], box_size[..., 1], box_size[..., 2]  # lwh(xzy) order!!!
+                corners = tf.reshape(tf.stack([l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2,
+                                               h / 2, h / 2, h / 2, h / 2, -h / 2, -h / 2, -h / 2, -h / 2,
+                                               w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2], -1),
+                                     tf.stack([batch_size, -1, 3, 8]))
+                return tf.einsum('ijkl,ijlm->ijmk', rotation, corners) + tf.expand_dims(center, 2)  # B * N * 8 * 3
+
+            class_mean_size_tf = tf.constant(class_mean_size)
+            size_cls_pred = tf.argmax(end_points['size_scores'], axis=-1)  # (B, proposal_num)
+            size_cls_pred_onehot = tf.one_hot(size_cls_pred, depth=config.NS, axis=-1)  # (B, proposal_num, NS)
+            size_residual_pred = tf.reduce_sum(tf.expand_dims(size_cls_pred_onehot, -1)  # (B, proposal_num, NS, -1)
+                                               * tf.reshape(end_points['size_residuals_normalized'],
+                                                            [-1, config.PROPOSAL_NUM, config.NS, 3]), axis=2)
+            #  size_residual_pred : (B, proposal_num, 3)
+            size_pred = tf.gather_nd(class_mean_size_tf, tf.expand_dims(size_cls_pred, -1)) \
+                        * tf.maximum(1 + size_residual_pred, 1e-6)  # B * N * 3: size
+
+            # calc center
+            center_pred = end_points['center']  # (B, proposal_num, 3)
+            heading_cls_pred = tf.argmax(end_points['heading_scores'], axis=-1)  # (B, proposal_num)
+            heading_cls_pred_onehot = tf.one_hot(heading_cls_pred, depth=config.NH, axis=-1)  # (B, proposal_num, NH)
+            heading_residual_pred = tf.reduce_sum(heading_cls_pred_onehot * end_points['heading_residuals_normalized'], axis=2)
+            heading_pred = tf.floormod(
+                (tf.cast(heading_cls_pred, tf.float32) * 2 + heading_residual_pred) * np.pi / config.NH,
+                2 * np.pi)
+
+            # with tf.control_dependencies([tf.print(size_residual_pred[0, :10, :]), tf.print(size_pred[0, :10, :])]):
+            bboxes = get_3d_bbox(size_pred, heading_pred, center_pred)  # B * N * 8 * 3,  lhw(xyz) order!!!
+
+            # bbox_corners = tf.concat([bboxes[:, :, 6, :], bboxes[:, :, 0, :]], axis=-1)  # B * N * 6,  lhw(xyz) order!!!
+            # with tf.control_dependencies([tf.print(bboxes[0, 0])]):
+            nms_idx = NMS3D(bboxes, tf.reduce_max(end_points['sem_cls_scores'], axis=-1), end_points['objectness_scores'],
+                            nms_iou)  # Nnms * 2
+
+            bboxes_pred = tf.gather_nd(bboxes, nms_idx, name='bboxes_pred')  # Nnms * 8 * 3
+            class_scores_pred = tf.gather_nd(end_points['sem_cls_scores'], nms_idx, name='class_scores_pred')  # Nnms * C
+            batch_idx = tf.identity(nms_idx[:, 0], name='batch_idx')  # Nnms, this is used to identify between batches
 
     # def build_graph(self, x, bboxes_xyz_labels, bboxes_lwh_labels, box3d_pts_labels, semantic_labels,
     #                 heading_cls_labels, heading_residual_labels,
@@ -302,11 +359,6 @@ class Model(ModelDesc):
         # Voting Module layers
         # seed_xyz seed_points (B, 512, 3/C)
         vote_xyz, vote_features = self.hough_voting_mlp(seed_xyz, seed_points)
-        # vote_xyz vote_features (B, 512*vote_factor, 3/C)
-
-        # votes_xyz_points = tf.concat([seeds_xyz, seeds_points], 2) + offset
-        # votes_xyz, votes_points = tf.slice(votes_xyz_points, (0, 0, 0), (-1, -1, 3)), \
-        #     tf.slice(votes_xyz_points, (0, 0, 3), (-1, -1, -1))
 
         # Proposal Module layers
         # Farthest point sampling on seeds
@@ -320,69 +372,8 @@ class Model(ModelDesc):
 
         end_points = self.parse_outputs_to_tensor(proposals_output, end_points)
 
-        nms_iou = tf.get_variable('nms_iou', shape=[], initializer=tf.constant_initializer(0.25), trainable=False)
         if not get_current_tower_context().is_training:
-
-            # class_mean_size_tf = tf.constant(class_mean_size)
-            # def tf_class2angle():
-            #     pass
-            #
-            # def tf_class2size(size_scores_pred, residual_normalized, NS):
-            #     """ size_scores_pred: (B, proposal_num, NS)
-            #         residual_normalized: (B, proposal_num, NS, 3)
-            #         NS:
-            #
-            #     """
-            #     size_cls_pred = tf.argmax(size_scores_pred, axis=-1)  # (B, proposal_num)
-            #     size_cls_pred_onehot = tf.one_hot(size_cls_pred, depth=NS, axis=-1)  # (B, proposal_num, NS)
-            #     size_residual_pred = tf.reduce_sum(tf.expand_dims(size_cls_pred_onehot, -1)  # (B, proposal_num, NS, -1)
-            #                                        * tf.reshape(size_residuals_normalized_pred,
-            #                                                     [-1, tf.shape(size_residuals_normalized_pred)[1], NS, 3]), axis=2)
-            #     #  size_residual_pred : (B, proposal_num, 3)
-            #     size_pred = tf.gather_nd(class_mean_size_tf, tf.expand_dims(size_cls_pred, -1)) * tf.maximum(
-            #         1 + size_residual_pred, 1e-1)  # B * N * 3: size
-            #     return size_pred
-
-            def get_3d_bbox(box_size, heading_angle, center):
-                batch_size = tf.shape(heading_angle)[0]
-                c = tf.cos(heading_angle)
-                s = tf.sin(heading_angle)
-                zeros = tf.zeros_like(c)
-                ones = tf.ones_like(c)
-                rotation = tf.reshape(tf.stack([c, zeros, s, zeros, ones, zeros, -s, zeros, c], -1), tf.stack([batch_size, -1, 3, 3]))
-                l, w, h = box_size[..., 0], box_size[..., 1], box_size[..., 2]  # lwh(xzy) order!!!
-                corners = tf.reshape(tf.stack([l / 2, l / 2, -l / 2, -l / 2, l / 2, l / 2, -l / 2, -l / 2,
-                                               h / 2, h / 2, h / 2, h / 2, -h / 2, -h / 2, -h / 2, -h / 2,
-                                               w / 2, -w / 2, -w / 2, w / 2, w / 2, -w / 2, -w / 2, w / 2], -1),
-                                     tf.stack([batch_size, -1, 3, 8]))
-                return tf.einsum('ijkl,ijlm->ijmk', rotation, corners) + tf.expand_dims(center, 2)  # B * N * 8 * 3
-
-            class_mean_size_tf = tf.constant(class_mean_size)
-            size_cls_pred = tf.argmax(end_points['size_scores'], axis=-1)  # (B, proposal_num)
-            size_cls_pred_onehot = tf.one_hot(size_cls_pred, depth=config.NS, axis=-1)  # (B, proposal_num, NS)
-            size_residual_pred = tf.reduce_sum(tf.expand_dims(size_cls_pred_onehot, -1)  # (B, proposal_num, NS, -1)
-                                               * tf.reshape(end_points['size_residuals_normalized'], [-1, config.PROPOSAL_NUM, config.NS, 3]), axis=2)
-            #  size_residual_pred : (B, proposal_num, 3)
-            size_pred = tf.gather_nd(class_mean_size_tf, tf.expand_dims(size_cls_pred, -1)) \
-                         * tf.maximum(1 + size_residual_pred, 1e-6)  # B * N * 3: size
-
-            # calc center
-            heading_cls_pred = tf.argmax(end_points['heading_scores'], axis=-1)  # (B, proposal_num)
-            heading_cls_pred_onehot = tf.one_hot(heading_cls_pred, depth=config.NH, axis=-1)  # (B, proposal_num, NH)
-            heading_residual_pred = tf.reduce_sum(heading_cls_pred_onehot * end_points['heading_residuals_normalized'], axis=2)
-            heading_pred = tf.floormod((tf.cast(heading_cls_pred, tf.float32) * 2 + heading_residual_pred) * np.pi / config.NH,
-                                       2 * np.pi)
-
-            # with tf.control_dependencies([tf.print(size_residual_pred[0, :10, :]), tf.print(size_pred[0, :10, :])]):
-            bboxes = get_3d_bbox(size_pred, heading_pred, end_points['center'])  # B * N * 8 * 3,  lhw(xyz) order!!!
-
-            # bbox_corners = tf.concat([bboxes[:, :, 6, :], bboxes[:, :, 0, :]], axis=-1)  # B * N * 6,  lhw(xyz) order!!!
-            # with tf.control_dependencies([tf.print(bboxes[0, 0])]):
-            nms_idx = NMS3D(bboxes, tf.reduce_max(end_points['sem_cls_scores'], axis=-1), end_points['objectness_scores'], nms_iou)  # Nnms * 2
-
-            bboxes_pred = tf.gather_nd(bboxes, nms_idx, name='bboxes_pred')  # Nnms * 8 * 3
-            class_scores_pred = tf.gather_nd(end_points['sem_cls_scores'], nms_idx, name='class_scores_pred')  # Nnms * C
-            batch_idx = tf.identity(nms_idx[:, 0], name='batch_idx')  # Nnms, this is used to identify between batches
+            self.calc_inference_v1(end_points)
 
         vote_loss = self.vote_reg_loss(seed_xyz, vote_xyz, fp2_inds, vote_label, vote_label_mask)
 
@@ -393,59 +384,6 @@ class Model(ModelDesc):
                                                          heading_class_label, heading_residual_label,
                                                          size_class_label, size_residual_label, sem_cls_label,
                                                          object_assignment, box_label_mask, objectness_label)
-        # dist_mat = tf.reduce_sum(tf.square(tf.expand_dims(end_points['center'], axis=[2]) -
-        #                                    tf.expand_dims(center_label, axis=[1])),
-        #                          axis=-1)
-        # dist1 = tf.reduce_min(dist_mat, axis=2)
-        # dist2 = tf.reduce_min(dist_mat, axis=1)
-        #
-        # center_loss_left = tf.reduce_sum(dist1 * objectness_label) / tf.reduce_sum(objectness_label + 1e-6)
-        # center_loss_right = tf.reduce_sum(dist2 * box_label_mask) / tf.reduce_sum(box_label_mask + 1e-6)
-        # center_loss_left = tf.identity(center_loss_left, name='center_left_loss')
-        # center_loss_right = tf.identity(center_loss_right, name='center_right_loss')
-        # center_loss = tf.identity(center_loss_left + center_loss_right, name='center_loss')
-        #
-        # # heading classification loss
-        # heading_class_label = tf.batch_gather(heading_class_label, object_assignment)
-        # heading_cls_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
-        #    logits=end_points['heading_scores'],
-        #    labels=heading_class_label)
-        # heading_cls_loss = tf.reduce_sum(heading_cls_loss * objectness_label) / tf.reduce_sum(objectness_label+1e-6)
-        #
-        # # residual loss
-        # heading_residual_label = tf.batch_gather(heading_residual_label, object_assignment)
-        # heading_residual_normalized_label = heading_residual_label / np.pi / config.NH
-        # heading_label_one_hot = tf.one_hot(heading_class_label, depth=config.NH, on_value=1, off_value=0, axis=-1)
-        # # heading_label_one_hot: (B,bbox,NH), dim 2 is one_hot vector
-        # heading_residual_loss = tf.losses.huber_loss(labels=heading_residual_normalized_label,
-        #                                              predictions=heading_label_one_hot * end_points['size_residuals_normalized'],
-        #                                              reduction=tf.losses.Reduction.NONE)
-        # heading_residual_loss = tf.reduce_sum(heading_residual_loss * objectness_label) / tf.reduce_sum(objectness_label+1e-6)
-        # heading_residual_loss = tf.identity(heading_residual_loss, name='heading_residual_loss')
-        #
-        # # size classification loss
-        # size_class_label = tf.batch_gather(size_class_label, object_assignment)
-        # size_cls_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
-        #     logits=end_points['size_scores'],
-        #     labels=size_class_label)
-        # size_cls_loss = tf.reduce_sum(size_cls_loss * objectness_label) / tf.reduce_sum(objectness_label+1e-6)
-        # size_cls_loss = tf.identity(size_cls_loss, 'size_cls_loss')
-        #
-        # # size residual loss
-        # # size_class_label (B,bbox) value = [0,NS)
-        # # size_residual_label (B,bbox,NH)
-        # size_label_one_hot = tf.one_hot(size_class_label, depth=config.NS, on_value=1, off_value=0, axis=-1)
-        # size_label_one_hot_tiled = tf.tile(tf.expand_dims(size_label_one_hot, -1), [1, 1, 1, 3]) #
-        # predicted_size_residual_normalized = tf.reduce_sum(size_label_one_hot_tiled*end_points['size_residuals_normalized'],axis=2)
-        # # predicted_size_residual_normalized (B,bbox,3)
-        # mean_size_arr_expanded = tf.expand_dims(tf.expand_dims(class_mean_size, 0), 0)
-        # mean_size_label = tf.reduce_sum(mean_size_arr_expanded * size_label_one_hot_tiled, axis=2)
-        # size_residual_label_normalized = size_residual_label / mean_size_label
-        # size_residual_loss = tf.reduce_mean(tf.losses.huber_loss(labels=size_residual_label_normalized,
-        #                                                          predictions=predicted_size_residual_normalized,
-        #                                                          reduction=tf.losses.Reduction.NONE),
-        #                                     axis=-1)
-        # size_residual_loss = tf.reduce_sum(size_residual_loss * objectness_label) / tf.reduce_sum(objectness_label+1e-6)
 
         # box loss
         box_loss = tf.identity(loss_points['center_loss'] + 0.1 * loss_points['heading_cls_loss'] +
@@ -457,6 +395,9 @@ class Model(ModelDesc):
         #                       name='regularize_loss')
 
         total_cost = vote_loss + 0.5 * objectness_loss + 1. * box_loss + 0.1 * loss_points['sem_cls_loss']
+
+        # if not get_current_tower_context().is_training:
+        #     self.calc_inference()
 
         total_cost = tf.identity(total_cost, 'total_loss')
         # total_cost = tf.add_n([total_cost, wd_cost], name='total_loss')

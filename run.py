@@ -103,7 +103,7 @@ if __name__ == '__main__':
     # this is the official train/val split
     #train_idx_list = [int(e.strip()) for e in open('/data/jiangyy/sun_rgbd/train/train_data_idx.txt').readlines()]
     #train_set = MyDataFlow('/data/jiangyy/sun_rgbd', 'train',idx_list=train_idx_list)
-    #test_idx_list = [int(e.strip()) for e in open('/data/jiangyy/sun_rgbd/train/val_data_idx.txt').readlines()][0:200]
+    test_idx_list = [ e for e in range(1,5050,1)]
     #test_set = MyDataFlow('/data/jiangyy/sun_rgbd', 'train', idx_list=test_idx_list)
 
     train_set = MyDataFlow('train', num_points=config.POINT_NUM,
@@ -111,12 +111,11 @@ if __name__ == '__main__':
         use_color=False, use_height=True,
         use_v1=True)
     # print(len(train_set))
-    """
-    val_set = MyDataFlow('val', num_points=config.POINT_NUM,
-        augment=False,
-        use_color=False, use_height=True,
-        use_v1=True)
-    """
+
+    # val_set = MyDataFlow('val', num_points=config.POINT_NUM,
+    #     augment=False,
+    #     use_color=False, use_height=True,
+    #     use_v1=True)
 
     #session_init = SaverRestore('./train_log/run/model-7500.data-00000-of-00001')
 
@@ -136,8 +135,8 @@ if __name__ == '__main__':
             # PeriodicTrigger(InferenceRunner(test_set, [ScalarStats('val_loss')]),
             #                 every_k_epochs=2, before_train=False),
             # compute mAP on val set
-            # PeriodicTrigger(Evaluator('/data/jiangyy/sun_rgbd', 'train', 1, idx_list=test_idx_list),
-            #                 every_k_epochs=5, before_train=False),
+            PeriodicTrigger(Evaluator('/data/jiangyy/sun_rgbd', 'train', 1, idx_list=test_idx_list),
+                            every_k_epochs=5, before_train=False),
             GPUUtilizationTracker()
             # MaxSaver('val_accuracy'),  # save the model with highest accuracy
         ],
