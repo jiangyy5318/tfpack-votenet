@@ -116,7 +116,9 @@ if __name__ == '__main__':
         use_color=False, use_height=True,
         use_v1=True)
 
-    df = val_set
+    df = BatchData(PrefetchData(val_set, min(multiprocessing.cpu_count() // 2, BATCH_SIZE),
+                                min(multiprocessing.cpu_count() // 2, BATCH_SIZE)),
+                   BATCH_SIZE)
     df.reset_state()  # 初始化
     generator = df.get_data()
     for dp in generator:

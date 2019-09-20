@@ -2,7 +2,6 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="e4520488-0a30-4d09-bfad-091cec1444ff" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/dataset/sunrgbd_detection_dataset.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataset/sunrgbd_detection_dataset.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/run.py" beforeDir="false" afterPath="$PROJECT_DIR$/run.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -29,7 +28,7 @@
           <entry key="dddd" value="1" />
           <entry key="gitignore" value="2" />
           <entry key="log" value="4" />
-          <entry key="py" value="358" />
+          <entry key="py" value="362" />
           <entry key="pyi" value="1" />
           <entry key="sh" value="8" />
           <entry key="txt" value="7" />
@@ -40,7 +39,7 @@
           <entry key="Bash" value="8" />
           <entry key="C++" value="2" />
           <entry key="PLAIN_TEXT" value="14" />
-          <entry key="Python" value="358" />
+          <entry key="Python" value="362" />
           <entry key="PythonStub" value="1" />
         </counts>
       </usages-collector>
@@ -48,7 +47,7 @@
         <counts>
           <entry key="dummy" value="59" />
           <entry key="gitignore" value="21" />
-          <entry key="py" value="18493" />
+          <entry key="py" value="18507" />
           <entry key="sh" value="111" />
           <entry key="txt" value="292" />
         </counts>
@@ -57,21 +56,30 @@
         <counts>
           <entry key="Bash" value="111" />
           <entry key="PLAIN_TEXT" value="372" />
-          <entry key="Python" value="18493" />
+          <entry key="Python" value="18507" />
         </counts>
       </usages-collector>
     </session>
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/run.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="287">
-              <caret line="118" lean-forward="true" selection-start-line="118" selection-end-line="118" />
+            <state relative-caret-position="74">
+              <caret line="118" column="13" selection-start-line="118" selection-start-column="9" selection-end-line="118" selection-end-column="18" />
               <folding>
                 <element signature="e#491#542#0" />
               </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="true">
+        <entry file="file:///usr/local/lib/python3.7/site-packages/tensorpack/dataflow/common.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="-300">
+              <caret line="70" column="47" selection-start-line="70" selection-start-column="47" selection-end-line="70" selection-end-column="47" />
             </state>
           </provider>
         </entry>
@@ -97,8 +105,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/dataset/sunrgbd_detection_dataset.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="459">
-              <caret line="250" column="61" selection-start-line="250" selection-start-column="61" selection-end-line="250" selection-end-column="61" />
+            <state relative-caret-position="-670">
+              <caret line="243" column="45" selection-start-line="243" selection-start-column="19" selection-end-line="243" selection-end-column="45" />
               <folding>
                 <element signature="e#979#988#0" expanded="true" />
               </folding>
@@ -749,20 +757,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file:///usr/local/lib/python3.7/site-packages/tensorpack/dataflow/base.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-1035">
-          <caret line="60" column="6" selection-start-line="60" selection-start-column="6" selection-end-line="60" selection-end-column="6" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file:///usr/local/lib/python3.7/site-packages/tensorpack/dataflow/common.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="228">
-          <caret line="111" column="46" selection-start-line="111" selection-end-line="112" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/evaluator.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="352">
@@ -779,8 +773,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/dataset/sunrgbd_detection_dataset.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="459">
-          <caret line="250" column="61" selection-start-line="250" selection-start-column="61" selection-end-line="250" selection-end-column="61" />
+        <state relative-caret-position="-670">
+          <caret line="243" column="45" selection-start-line="243" selection-start-column="19" selection-end-line="243" selection-end-column="45" />
           <folding>
             <element signature="e#979#988#0" expanded="true" />
           </folding>
@@ -789,11 +783,25 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/run.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="287">
-          <caret line="118" lean-forward="true" selection-start-line="118" selection-end-line="118" />
+        <state relative-caret-position="74">
+          <caret line="118" column="13" selection-start-line="118" selection-start-column="9" selection-end-line="118" selection-end-column="18" />
           <folding>
             <element signature="e#491#542#0" />
           </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file:///usr/local/lib/python3.7/site-packages/tensorpack/dataflow/base.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="237">
+          <caret line="166" column="28" selection-start-line="166" selection-start-column="20" selection-end-line="166" selection-end-column="28" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file:///usr/local/lib/python3.7/site-packages/tensorpack/dataflow/common.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-300">
+          <caret line="70" column="47" selection-start-line="70" selection-start-column="47" selection-end-line="70" selection-end-column="47" />
         </state>
       </provider>
     </entry>
