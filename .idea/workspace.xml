@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="e4520488-0a30-4d09-bfad-091cec1444ff" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/run.py" beforeDir="false" afterPath="$PROJECT_DIR$/run.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/dataset/sunrgbd_detection_dataset.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataset/sunrgbd_detection_dataset.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -47,7 +47,7 @@
         <counts>
           <entry key="dummy" value="59" />
           <entry key="gitignore" value="21" />
-          <entry key="py" value="18507" />
+          <entry key="py" value="18516" />
           <entry key="sh" value="111" />
           <entry key="txt" value="292" />
         </counts>
@@ -56,7 +56,7 @@
         <counts>
           <entry key="Bash" value="111" />
           <entry key="PLAIN_TEXT" value="372" />
-          <entry key="Python" value="18507" />
+          <entry key="Python" value="18516" />
         </counts>
       </usages-collector>
     </session>
@@ -66,7 +66,7 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/run.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="74">
+            <state relative-caret-position="115">
               <caret line="118" column="13" selection-start-line="118" selection-start-column="9" selection-end-line="118" selection-end-column="18" />
               <folding>
                 <element signature="e#491#542#0" />
@@ -75,10 +75,10 @@
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
         <entry file="file:///usr/local/lib/python3.7/site-packages/tensorpack/dataflow/common.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-300">
+            <state relative-caret-position="-289">
               <caret line="70" column="47" selection-start-line="70" selection-start-column="47" selection-end-line="70" selection-end-column="47" />
             </state>
           </provider>
@@ -102,11 +102,11 @@
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="false">
+      <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/dataset/sunrgbd_detection_dataset.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-670">
-              <caret line="243" column="45" selection-start-line="243" selection-start-column="19" selection-end-line="243" selection-end-column="45" />
+            <state relative-caret-position="430">
+              <caret line="244" column="36" lean-forward="true" selection-start-line="244" selection-start-column="36" selection-end-line="244" selection-end-column="36" />
               <folding>
                 <element signature="e#979#988#0" expanded="true" />
               </folding>
@@ -231,8 +231,8 @@
         <option value="$PROJECT_DIR$/model/model_v1_2.py" />
         <option value="$PROJECT_DIR$/evaluator_v2.py" />
         <option value="$PROJECT_DIR$/model/model_v1_3.py" />
-        <option value="$PROJECT_DIR$/dataset/sunrgbd_detection_dataset.py" />
         <option value="$PROJECT_DIR$/run.py" />
+        <option value="$PROJECT_DIR$/dataset/sunrgbd_detection_dataset.py" />
       </list>
     </option>
   </component>
@@ -771,26 +771,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/dataset/sunrgbd_detection_dataset.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-670">
-          <caret line="243" column="45" selection-start-line="243" selection-start-column="19" selection-end-line="243" selection-end-column="45" />
-          <folding>
-            <element signature="e#979#988#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/run.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="74">
-          <caret line="118" column="13" selection-start-line="118" selection-start-column="9" selection-end-line="118" selection-end-column="18" />
-          <folding>
-            <element signature="e#491#542#0" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file:///usr/local/lib/python3.7/site-packages/tensorpack/dataflow/base.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="237">
@@ -800,8 +780,28 @@
     </entry>
     <entry file="file:///usr/local/lib/python3.7/site-packages/tensorpack/dataflow/common.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-300">
+        <state relative-caret-position="-289">
           <caret line="70" column="47" selection-start-line="70" selection-start-column="47" selection-end-line="70" selection-end-column="47" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/run.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="115">
+          <caret line="118" column="13" selection-start-line="118" selection-start-column="9" selection-end-line="118" selection-end-column="18" />
+          <folding>
+            <element signature="e#491#542#0" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/dataset/sunrgbd_detection_dataset.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="430">
+          <caret line="244" column="36" lean-forward="true" selection-start-line="244" selection-start-column="36" selection-end-line="244" selection-end-column="36" />
+          <folding>
+            <element signature="e#979#988#0" expanded="true" />
+          </folding>
         </state>
       </provider>
     </entry>

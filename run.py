@@ -122,7 +122,7 @@ if __name__ == '__main__':
     df.reset_state()  # 初始化
     generator = df.get_data()
     for dp in generator:
-        print('data:', len(dp), 'data0 shape:', dp[0].shape)
+        print('data:', len(dp), 'data_0 shape:', dp[0].shape)
     exit(1)
     #session_init = SaverRestore('./train_log/run/model-7500.data-00000-of-00001')
 

@@ -232,16 +232,15 @@ class MyDataFlow(RNGDataFlow):
                     key_list = ['point_clouds', 'center_label', 'heading_class_label', 'heading_residual_label',
                                 'size_class_label', 'size_residual_label', 'sem_cls_label', 'box_label_mask',
                                 'vote_label', 'vote_label_mask', 'scan_idx', 'max_gt_bboxes']
-                    #if np.sum(ret_dict['sem_cls_label']) > 0:
+                    #if np.sum(ret_dict['sem_cls_label']) > 0 :
                     yield [ret_dict[key] for key in key_list]
 
                 except Exception as ex:
                     print("can not get a data from {}".format(idx))
         else:
             for idx in range(self.__len__()):
-                idx = None
                 try:
-                    idx = self.rng.choice(self.__len__())
+                    print(idx)
                     ret_dict = self.__getitem__(idx)
                     # yield ret_dict
                     key_list = ['point_clouds', 'center_label', 'heading_class_label', 'heading_residual_label',
