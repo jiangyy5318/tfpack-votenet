@@ -8,10 +8,11 @@ from dataset.dataset_v2 import *
 import numpy as np
 import config
 from shapely.geometry import Polygon
-from tqdm import tqdm
-import itertools
+from model.ap_helper import APCalculator, parse_predictions, parse_groundtruths
 type_whitelist = ('bed', 'table', 'sofa', 'chair', 'toilet', 'desk', 'dresser', 'night_stand',
                                'bookshelf', 'bathtub')
+from dataset.model_util_sunrgbd import SunrgbdDatasetConfig
+DATASET_CONFIG = SunrgbdDatasetConfig()
 
 
 def iou_3d(bbox1, bbox2):
@@ -83,124 +84,65 @@ def voc_ap(rec, prec):
 
 # idea reference: https://github.com/Cartucho/mAP
 def eval_mAP(dataset, pred_func, ious):
-    fps = {iou: {t: [] for t in type2class} for iou in ious}
-    tps = {iou: {t: [] for t in type2class} for iou in ious}
-    confidence = {t: [] for t in type2class}
-    aps = {iou: {t: 0 for t in type2class} for iou in ious}
-    gt_counter_per_class = {t: 0 for t in type2class}
-    for idx in tqdm(dataset.samples):
-        calib = dataset.get_calibration(idx)
-        objects = dataset.get_label_objects(idx)
-        pc_upright_depth = dataset.get_depth(idx)
-        pc_upright_depth = pc_upright_depth[
-                            np.random.choice(pc_upright_depth.shape[0], config.POINT_NUM, replace=False), :]  # subsample
-        pc_upright_camera = np.zeros_like(pc_upright_depth)
-        pc_upright_camera[:, 0:3] = calib.project_upright_depth_to_upright_camera(pc_upright_depth[:, 0:3])
-        pc_upright_camera[:, 3:] = pc_upright_depth[:, 3:]
-        pc_image_coord, _ = calib.project_upright_depth_to_image(pc_upright_depth)
 
-        bboxes_pred, class_scores_pred, _ = pred_func(pc_upright_camera[None, :, :3])
-        class_score_pred = np.max(class_scores_pred, axis=-1)
-        # sort by confidence, high 2 low
-        sort_idx = np.argsort(-np.max(class_scores_pred, axis=-1))
-        bboxes_pred = bboxes_pred[sort_idx]
-        class_scores_pred = class_scores_pred[sort_idx]
-        class_score_pred = class_score_pred[sort_idx]
-        class_labels_pred = np.argmax(class_scores_pred, -1)
 
-        if not objects:
-            continue
+    pass
 
-        gt_bboxes = []
-        gt_classes = []
-        for obj_idx in range(len(objects)):
-            obj = objects[obj_idx]
-            if obj.classname not in type_whitelist:
-                continue
 
-            # 2D BOX: Get pts rect backprojected
-            box2d = obj.box2d
-            xmin, ymin, xmax, ymax = box2d
-            box_fov_inds = (pc_image_coord[:, 0] < xmax) & (pc_image_coord[:, 0] >= xmin) & (
-                    pc_image_coord[:, 1] < ymax) & (pc_image_coord[:, 1] >= ymin)
-            pc_in_box_fov = pc_upright_camera[box_fov_inds, :]
-            # Get frustum angle (according to center pixel in 2D BOX)
-            # 3D BOX: Get pts velo in 3d box
-            box3d_pts_2d, box3d_pts_3d = sunutils.compute_box_3d(obj, calib)
-            box3d_pts_3d = calib.project_upright_depth_to_upright_camera(box3d_pts_3d)
-            _, inds = sunutils.extract_pc_in_box3d(pc_in_box_fov, box3d_pts_3d)
-            # Get 3D BOX size
-            box3d_size = np.array([2 * obj.l, 2 * obj.w, 2 * obj.h])
-            box3d_center = (box3d_pts_3d[0, :] + box3d_pts_3d[6, :]) / 2
+def evaluate_one_epoch(TEST_DATALOADER, pred_func):
+    stat_dict = {}  # collect statistics
+    ap_calculator = APCalculator(ap_iou_thresh=0.25,
+                                 class2type_map=DATASET_CONFIG.class2type)
+    # net.eval()  # set model to eval mode (for bn and dp)
+    for batch_idx, batch_data_label in enumerate(TEST_DATALOADER):
+        if batch_idx % 10 == 0:
+            print('Eval batch: %d' % (batch_idx))
+        # for key in batch_data_label:
+        #     batch_data_label[key] = batch_data_label[key].to(device)
 
-            # Size
-            size_class, size_residual = size2class(box3d_size, obj.classname)
-            angle_class, angle_residual = angle2class(obj.heading_angle, config.NH)
+        # Forward pass
+        # inputs = {'point_clouds': batch_data_label['point_clouds']}
+        # end_points = net(inputs)
 
-            # Reject object with too few points
-            if len(inds) < 5:
-                continue
+        # Compute loss
+        # for key in batch_data_label:
+        #     assert (key not in end_points)
+        #     end_points[key] = batch_data_label[key]
+        # loss, end_points = criterion(end_points, DATASET_CONFIG)
+        # key_list = ['point_clouds', 'center_label', 'heading_class_label', 'heading_residual_label',
+        #             'size_class_label', 'size_residual_label', 'sem_cls_label', 'box_label_mask',
+        #             'vote_label', 'vote_label_mask', 'scan_idx', 'max_gt_bboxes']
 
-            bbox = get_3d_box(class2size(size_class, size_residual),
-                       class2angle(angle_class, angle_residual, config.NH), box3d_center)
-            gt_bboxes.append(bbox)
-            gt_classes.append(type2class[obj.classname])
-            gt_counter_per_class[obj.classname] += 1
+        _, _, _ = pred_func(batch_data_label['point_clouds'][None, :, :])
 
-        gt_matched = {iou: {k: False for k in range(len(gt_bboxes))} for iou in ious}
-        for i, bbox_pred in enumerate(bboxes_pred):
-            max_overlap = -1
-            gt_match = -1
-            for j, gt_bbox in enumerate(gt_bboxes):
-                if gt_classes[j] == class_labels_pred[i]:
-                    overlap = iou_3d(bbox_pred, gt_bbox)
-                    if overlap > max_overlap:
-                        max_overlap = overlap
-                        gt_match = j
+        end_points = {}
+        # Accumulate statistics and print out
+        for key in end_points:
+            if 'loss' in key or 'acc' in key or 'ratio' in key:
+                if key not in stat_dict: stat_dict[key] = 0
+                stat_dict[key] += end_points[key].item()
 
-            for iou in ious:
-                # greedy match
-                if max_overlap > iou and not gt_matched[iou][gt_match]:
-                    gt_matched[iou][gt_match] = True
-                    tps[iou][class2type[class_labels_pred[i]]].append(1)
-                    fps[iou][class2type[class_labels_pred[i]]].append(0)
-                else:
-                    tps[iou][class2type[class_labels_pred[i]]].append(0)
-                    fps[iou][class2type[class_labels_pred[i]]].append(1)
+        batch_pred_map_cls = parse_predictions(end_points, CONFIG_DICT)
+        batch_gt_map_cls = parse_groundtruths(end_points, CONFIG_DICT)
+        ap_calculator.step(batch_pred_map_cls, batch_gt_map_cls)
 
-            confidence[class2type[class_labels_pred[i]]].append(class_score_pred[i])
+        # Dump evaluation results for visualization
+        # if FLAGS.dump_results and batch_idx == 0 and EPOCH_CNT % 10 == 0:
+        #     MODEL.dump_results(end_points, DUMP_DIR, DATASET_CONFIG)
 
-        # except Exception as e:
-        #     print(e)
+    #         # Log statistics
+    # TEST_VISUALIZER.log_scalars({key: stat_dict[key] / float(batch_idx + 1) for key in stat_dict},
+    #                             (EPOCH_CNT + 1) * len(TRAIN_DATALOADER) * BATCH_SIZE)
+    # for key in sorted(stat_dict.keys()):
+    #     log_string('eval mean %s: %f' % (key, stat_dict[key] / (float(batch_idx + 1))))
+    #
+    # # Evaluate average precision
+    # metrics_dict = ap_calculator.compute_metrics()
+    # for key in metrics_dict:
+    #     log_string('eval %s: %f' % (key, metrics_dict[key]))
 
-    for iou in ious:
-        for t in type2class:
-            tp = tps[iou][t]
-            fp = fps[iou][t]
-            # sort by confidence
-            tp = [x for _, x in sorted(zip(confidence[t], tp), reverse=True)]
-            fp = [x for _, x in sorted(zip(confidence[t], fp), reverse=True)]
-            # tp.sort(key=lambda k: -confidence[class2type[tp.index(k)]])
-            # fp.sort(key=lambda k: -confidence[class2type[fp.index(k)]])
-            tp = list(itertools.accumulate(tp))
-            fp = list(itertools.accumulate(fp))
-
-            rec = tp[:]
-            for i, val in enumerate(tp):
-                if gt_counter_per_class[t] == 0:
-                    rec[i] = 0
-                else:
-                    rec[i] = float(tp[i]) / gt_counter_per_class[t]
-            # print(rec)
-            prec = tp[:]
-            for i, val in enumerate(tp):
-                prec[i] = float(tp[i]) / (fp[i] + tp[i])
-            # print(prec)
-
-            ap, mrec, mprec = voc_ap(rec[:], prec[:])
-            aps[iou][t] = ap
-
-    return {iou: np.mean(list(aps[iou].values())) for iou in ious}
+    # mean_loss = stat_dict['loss'] / float(batch_idx + 1)
+    # return mean_loss
 
 
 class Evaluator(Callback):
@@ -209,7 +151,7 @@ class Evaluator(Callback):
         self.batch_size = batch_size  # not used for now
 
     def _setup_graph(self):
-        self.pred_func = self.trainer.get_predictor(['points'], ['bboxes_pred', 'class_scores_pred', 'batch_idx'])
+        self.pred_func = self.trainer.get_predictor(['point_clouds'], ['bboxes_pred', 'class_scores_pred', 'batch_idx'])
 
     def _before_train(self):
         logger.info('Evaluating mAP on validation set...')

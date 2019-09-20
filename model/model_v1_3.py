@@ -18,7 +18,7 @@ vote_factor = 1
 GT_VOTE_FACTOR = 3 # number of GT votes per point
 FAR_THRESHOLD = 0.6
 NEAR_THRESHOLD = 0.3
-OBJECTNESS_CLS_WEIGHTS = [0.2,0.8]
+OBJECTNESS_CLS_WEIGHTS = [0.2, 0.8]
 
 
 class Model(ModelDesc):
@@ -39,7 +39,7 @@ class Model(ModelDesc):
         ret_dict['scan_idx'] = np.array(idx).astype(np.int64) #()
         ret_dict['max_gt_bboxes'] = max_bboxes #(bbox,8)
         """
-        return [tf.placeholder(tf.float32, [None, config.POINT_NUM , config.POINT_DIM], 'point_clouds'),
+        return [tf.placeholder(tf.float32, [None, config.POINT_NUM, config.POINT_DIM], 'point_clouds'),
                 tf.placeholder(tf.float32, [None, MAX_NUM_OBJ, 3], 'center_label'),
                 tf.placeholder(tf.int32, [None, MAX_NUM_OBJ], 'heading_class_label'),
                 tf.placeholder(tf.float32, [None, MAX_NUM_OBJ], 'heading_residual_label'),
@@ -276,7 +276,6 @@ class Model(ModelDesc):
     def calc_inference_v1(end_points):
         nms_iou = tf.get_variable('nms_iou', shape=[], initializer=tf.constant_initializer(0.25), trainable=False)
         if not get_current_tower_context().is_training:
-
             def get_3d_bbox(box_size, heading_angle, center):
                 batch_size = tf.shape(heading_angle)[0]
                 c = tf.cos(heading_angle)
@@ -363,17 +362,16 @@ class Model(ModelDesc):
         # Proposal Module layers
         # Farthest point sampling on seeds
         proposals_xyz, proposals_output, _ = pointnet_sa_module(vote_xyz, vote_features,
-                                                               npoint=config.PROPOSAL_NUM,
-                                                               radius=0.3, nsample=64, mlp=[128, 128, 128],
-                                                               mlp2=[128, 128,5+2 * config.NH+4 * config.NS+config.NC],
-                                                               group_all=False, scope='proposal',
-                                                               use_xyz=True, normalize_xyz=True)
+                                                                npoint=config.PROPOSAL_NUM,
+                                                                radius=0.3, nsample=64, mlp=[128, 128, 128],
+                                                                mlp2=[128, 128,5+2 * config.NH+4 * config.NS+config.NC],
+                                                                group_all=False, scope='proposal',
+                                                                use_xyz=True, normalize_xyz=True)
         end_points['proposals_xyz'] = proposals_xyz
 
         end_points = self.parse_outputs_to_tensor(proposals_output, end_points)
 
-        if not get_current_tower_context().is_training:
-            self.calc_inference_v1(end_points)
+        self.calc_inference_v1(end_points)
 
         vote_loss = self.vote_reg_loss(seed_xyz, vote_xyz, fp2_inds, vote_label, vote_label_mask)
 

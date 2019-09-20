@@ -46,7 +46,7 @@ class MyDataFlow(RNGDataFlow):
         use_color=False, use_height=False, use_v1=False,
         augment=False, scan_idx_list=None):
 
-        assert(num_points<=50000)
+        assert(num_points <= 50000)
         self.use_v1 = use_v1
         self.split_set = split_set
         if use_v1:
@@ -213,13 +213,13 @@ class MyDataFlow(RNGDataFlow):
         ret_dict['vote_label_mask'] = point_votes_mask.astype(np.int64) #(N)
         ret_dict['scan_idx'] = np.array(idx).astype(np.int64) #()
         ret_dict['max_gt_bboxes'] = max_bboxes #(bbox,8)
-        box3d_centers = np.zeros((MAX_NUM_OBJ, 3))
-        box3d_sizes = np.zeros((MAX_NUM_OBJ, 3))
-        angle_classes = np.zeros((MAX_NUM_OBJ,))
-        angle_residuals = np.zeros((MAX_NUM_OBJ,))
-        size_classes = np.zeros((MAX_NUM_OBJ,))
-        size_residuals = np.zeros((MAX_NUM_OBJ, 3))
-        label_mask = np.zeros((MAX_NUM_OBJ))
+        # box3d_centers = np.zeros((MAX_NUM_OBJ, 3))
+        # box3d_sizes = np.zeros((MAX_NUM_OBJ, 3))
+        # angle_classes = np.zeros((MAX_NUM_OBJ,))
+        # angle_residuals = np.zeros((MAX_NUM_OBJ,))
+        # size_classes = np.zeros((MAX_NUM_OBJ,))
+        # size_residuals = np.zeros((MAX_NUM_OBJ, 3))
+        # label_mask = np.zeros((MAX_NUM_OBJ))
         return ret_dict
 
     def __iter__(self):
@@ -243,11 +243,7 @@ class MyDataFlow(RNGDataFlow):
                 try:
                     idx = self.rng.choice(self.__len__())
                     ret_dict = self.__getitem__(idx)
-                    key_list = ['point_clouds', 'center_label', 'heading_class_label', 'heading_residual_label',
-                                'size_class_label', 'size_residual_label', 'sem_cls_label', 'box_label_mask',
-                                'vote_label', 'vote_label_mask', 'scan_idx', 'max_gt_bboxes']
-                    # if np.sum(ret_dict['sem_cls_label']) > 0:
-                    yield [ret_dict[key] for key in key_list]
+                    yield ret_dict
 
                 except Exception as ex:
                     print("can not get a data from {}".format(idx))

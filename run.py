@@ -110,13 +110,18 @@ if __name__ == '__main__':
         augment=True,
         use_color=False, use_height=True,
         use_v1=True)
-    # print(len(train_set))
 
-    # val_set = MyDataFlow('val', num_points=config.POINT_NUM,
-    #     augment=False,
-    #     use_color=False, use_height=True,
-    #     use_v1=True)
+    val_set = MyDataFlow('val', num_points=config.POINT_NUM,
+        augment=False,
+        use_color=False, use_height=True,
+        use_v1=True)
 
+    df = val_set
+    df.reset_state()  # 初始化
+    generator = df.get_data()
+    for dp in generator:
+        print(dp)
+    exit(1)
     #session_init = SaverRestore('./train_log/run/model-7500.data-00000-of-00001')
 
     # lr_schedule = [(i, 5e-5) for i in range(260)]
