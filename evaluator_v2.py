@@ -13,7 +13,14 @@ type_whitelist = ('bed', 'table', 'sofa', 'chair', 'toilet', 'desk', 'dresser', 
                                'bookshelf', 'bathtub')
 from dataset.model_util_sunrgbd import SunrgbdDatasetConfig
 DATASET_CONFIG = SunrgbdDatasetConfig()
-
+CONFIG_DICT = {'remove_empty_box':False,
+               'use_3d_nms':True,
+               'nms_iou':0.25,
+               'use_old_type_nms':False,
+               'cls_nms':True,
+               'per_class_proposal': True,
+               'conf_thresh':0.05,
+               'dataset_config':DATASET_CONFIG}
 
 def iou_3d(bbox1, bbox2):
     '''
@@ -83,48 +90,40 @@ def voc_ap(rec, prec):
 
 
 # idea reference: https://github.com/Cartucho/mAP
-def eval_mAP(dataset, pred_func, ious):
+# def evaluate_one_epoch(dataset, pred_func, ious):
 
 
-    pass
-
-
-def evaluate_one_epoch(TEST_DATALOADER, pred_func):
+def evaluate_one_epoch(val_df, pred_func, output_names):
     stat_dict = {}  # collect statistics
     ap_calculator = APCalculator(ap_iou_thresh=0.25,
                                  class2type_map=DATASET_CONFIG.class2type)
     # net.eval()  # set model to eval mode (for bn and dp)
-    for batch_idx, batch_data_label in enumerate(TEST_DATALOADER):
-        if batch_idx % 10 == 0:
-            print('Eval batch: %d' % (batch_idx))
-        # for key in batch_data_label:
-        #     batch_data_label[key] = batch_data_label[key].to(device)
 
-        # Forward pass
-        # inputs = {'point_clouds': batch_data_label['point_clouds']}
-        # end_points = net(inputs)
+    val_df.reset_state()  # 初始化
+    generator = val_df.get_data()
+    for dp in generator:
 
-        # Compute loss
-        # for key in batch_data_label:
-        #     assert (key not in end_points)
-        #     end_points[key] = batch_data_label[key]
-        # loss, end_points = criterion(end_points, DATASET_CONFIG)
-        # key_list = ['point_clouds', 'center_label', 'heading_class_label', 'heading_residual_label',
-        #             'size_class_label', 'size_residual_label', 'sem_cls_label', 'box_label_mask',
-        #             'vote_label', 'vote_label_mask', 'scan_idx', 'max_gt_bboxes']
+        point_cloud, center_label, heading_class_label, heading_residual_label, size_class_label, size_residual_label, \
+            sem_cls_label, box_label_mask, vote_label, vote_label_mask, scan_idx, max_gt_bboxes = dp
 
-        _, _, _ = pred_func(batch_data_label['point_clouds'][None, :, :])
-
-        end_points = {}
-        # Accumulate statistics and print out
-        for key in end_points:
-            if 'loss' in key or 'acc' in key or 'ratio' in key:
-                if key not in stat_dict: stat_dict[key] = 0
-                stat_dict[key] += end_points[key].item()
+        values = pred_func(point_cloud)
+        end_points = dict(zip(output_names, values))
+        end_points['center_label'] = center_label
+        end_points['heading_class_label'] = heading_class_label
+        end_points['heading_residual_label'] = heading_residual_label
+        end_points['size_class_label'] = size_class_label
+        end_points['size_residual_label'] = size_residual_label
+        end_points['box_label_mask'] = box_label_mask
+        end_points['sem_cls_label'] = sem_cls_label
 
         batch_pred_map_cls = parse_predictions(end_points, CONFIG_DICT)
         batch_gt_map_cls = parse_groundtruths(end_points, CONFIG_DICT)
         ap_calculator.step(batch_pred_map_cls, batch_gt_map_cls)
+
+        metrics_dict = ap_calculator.compute_metrics()
+        return metrics_dict
+
+        # mean_loss = stat_dict['loss'] / float(batch_idx + 1)
 
         # Dump evaluation results for visualization
         # if FLAGS.dump_results and batch_idx == 0 and EPOCH_CNT % 10 == 0:
@@ -146,33 +145,41 @@ def evaluate_one_epoch(TEST_DATALOADER, pred_func):
 
 
 class Evaluator(Callback):
-    def __init__(self, root, split, batch_size, idx_list=None):
-        self.dataset = sunrgbd_object(root, split, idx_list)
-        self.batch_size = batch_size  # not used for now
+    def __init__(self, val_df):
+        self.data_val = val_df
+
+        self.output_names = ['pred_center', 'pred_heading_class', 'pred_heading_residual', 'pred_size_class',
+                             'pred_size_residual', 'pred_sem_cls', 'sem_cls_probs']
 
     def _setup_graph(self):
-        self.pred_func = self.trainer.get_predictor(['point_clouds'], ['bboxes_pred', 'class_scores_pred', 'batch_idx'])
+        self.pred_func = self.trainer.get_predictor(['point_clouds'], self.output_names)
 
     def _before_train(self):
         logger.info('Evaluating mAP on validation set...')
-        mAPs = eval_mAP(self.dataset, self.pred_func, [0.25, 0.5])
-        for iou in mAPs:
-            logger.info("mAP{:.2f}:{:.4f}".format(iou,  mAPs[iou]))
+        metrics_dict = evaluate_one_epoch(self.data_val, self.pred_func, self.output_names)
+        for key in metrics_dict:
+            print('eval %s: %f' % (key, metrics_dict[key]))
+
+        # for iou in mAPs:
+        #     logger.info("mAP{:.2f}:{:.4f}".format(iou,  mAPs[iou]))
 
     def _trigger(self):
         logger.info('Evaluating mAP on validation set...')
-        mAPs = eval_mAP(self.dataset, self.pred_func, [0.25, 0.5])
-        for iou in mAPs:
-            self.trainer.monitors.put_scalar('mAP%f' % iou, mAPs[iou])
+        metrics_dict = evaluate_one_epoch(self.data_val, self.pred_func, self.output_names)
+        for key in metrics_dict:
+            # print('eval %s: %f' % (key, metrics_dict[key]))
+            self.trainer.monitors.put_scalar(key, metrics_dict[key])
 
 
 if __name__ == '__main__':
     import itertools
-    from model.model_bak import Model
-    mAPs = eval_mAP(sunrgbd_object('/home/neil/mysunrgbd', 'training', idx_list=list(range(11, 21))), OfflinePredictor(PredictConfig(
-            model=Model(),
-            session_init=SaverRestore('./train_log/run/checkpoint'),
-            input_names=['points'],
-            output_names=['bboxes_pred', 'class_scores_pred', 'batch_idx'])), [0.25, 0.5])
-    for iou in mAPs:
-        print("mAP{:.2f}:{:.4f}".format(iou, mAPs[iou]))
+    # from model.model_bak import Model
+    #
+    #
+    # mAPs = eval_mAP(sunrgbd_object('/home/neil/mysunrgbd', 'training', idx_list=list(range(11, 21))), OfflinePredictor(PredictConfig(
+    #         model=Model(),
+    #         session_init=SaverRestore('./train_log/run/checkpoint'),
+    #         input_names=['points'],
+    #         output_names=['bboxes_pred', 'class_scores_pred', 'batch_idx'])), [0.25, 0.5])
+    # for iou in mAPs:
+    #     print("mAP{:.2f}:{:.4f}".format(iou, mAPs[iou]))

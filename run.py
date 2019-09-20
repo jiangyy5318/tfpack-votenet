@@ -5,7 +5,7 @@ ROOT_DIR = os.path.dirname(__file__)
 sys.path.append(ROOT_DIR)
 import config
 import multiprocessing
-from evaluator import Evaluator
+from evaluator_v2 import Evaluator
 import six
 import numpy as np
 from tensorpack.train import launch_train_with_config
@@ -116,14 +116,10 @@ if __name__ == '__main__':
         use_color=False, use_height=True,
         use_v1=True)
 
-    df = BatchData(PrefetchData(val_set, min(multiprocessing.cpu_count() // 2, BATCH_SIZE),
-                                min(multiprocessing.cpu_count() // 2, BATCH_SIZE)),
-                   BATCH_SIZE)
-    df.reset_state()  # 初始化
-    generator = df.get_data()
-    for dp in generator:
-        print('data:', len(dp), 'data_0 shape:', dp[0].shape)
-    exit(1)
+    val_df = BatchData(PrefetchData(val_set, min(multiprocessing.cpu_count() // 2, BATCH_SIZE),
+                                    min(multiprocessing.cpu_count() // 2, 1)),
+                       BATCH_SIZE, remainder=True)
+
     #session_init = SaverRestore('./train_log/run/model-7500.data-00000-of-00001')
 
     # lr_schedule = [(i, 5e-5) for i in range(260)]
@@ -142,8 +138,7 @@ if __name__ == '__main__':
             # PeriodicTrigger(InferenceRunner(test_set, [ScalarStats('val_loss')]),
             #                 every_k_epochs=2, before_train=False),
             # compute mAP on val set
-            PeriodicTrigger(Evaluator('/data/jiangyy/sun_rgbd', 'train', 1, idx_list=test_idx_list),
-                            every_k_epochs=5, before_train=False),
+            PeriodicTrigger(Evaluator(val_df), every_k_epochs=5, before_train=False),
             GPUUtilizationTracker()
             # MaxSaver('val_accuracy'),  # save the model with highest accuracy
         ],

@@ -10,8 +10,7 @@ import config
 from shapely.geometry import Polygon
 from tqdm import tqdm
 import itertools
-type_whitelist = ('bed', 'table', 'sofa', 'chair', 'toilet', 'desk', 'dresser', 'night_stand',
-                               'bookshelf', 'bathtub')
+type_whitelist = ('bed', 'table', 'sofa', 'chair', 'toilet', 'desk', 'dresser', 'night_stand', 'bookshelf', 'bathtub')
 
 
 def iou_3d(bbox1, bbox2):

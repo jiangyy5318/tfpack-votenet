@@ -261,11 +261,11 @@ class Model(ModelDesc):
     @staticmethod
     def calc_inference(end_points):
         pred_center = tf.identity(end_points['center'], 'pred_center')  # B,num_proposal,3 ; base_xyz + proposal
-        pred_heading_class = tf.argmax(end_points['heading_scores'], -1)  # B,num_proposal
+        pred_heading_class = tf.argmax(end_points['heading_scores'], -1, name='pred_heading_class')  # B,num_proposal
         pred_heading_class_onehot = tf.one_hot(pred_heading_class, depth=config.NH, axis=-1, dtype=tf.float32)
         pred_heading_residual = tf.reduce_sum(pred_heading_class_onehot * end_points['heading_residuals'], axis=2, name='pred_heading_residual')
 
-        pred_size_class = tf.argmax(end_points['size_scores'], -1)  # B,num_proposal
+        pred_size_class = tf.argmax(end_points['size_scores'], -1, name='pred_size_class')  # B,num_proposal
         pred_size_class_onehot = tf.one_hot(pred_size_class, depth=config.NS, axis=-1, dtype=tf.float32)
         pred_size_residual = tf.reduce_sum(tf.expand_dims(pred_size_class_onehot, -1) * end_points['size_residuals'],
                                            axis=2, name='pred_size_residual')
